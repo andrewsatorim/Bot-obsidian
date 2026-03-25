@@ -5,6 +5,7 @@ import time
 from typing import Optional
 
 from app.config import Settings
+from app.core.exit_manager import ExitAction, ExitConfig, ExitManager
 from app.models.enums import Direction, OrderSide, OrderType, SetupType
 from app.models.feature_vector import FeatureVector
 from app.models.order import Order
@@ -50,6 +51,7 @@ class Orchestrator:
         self._pending_trade: Optional[TradeCandidate] = None
         self._pending_quantity: float = 0.0
         self._active_position: Optional[Position] = None
+        self._exit_manager: Optional[ExitManager] = None
         self._cooldown_until: Optional[float] = None
 
     async def step(self) -> Optional[TradeCandidate]:
@@ -151,6 +153,10 @@ class Orchestrator:
             stop_loss=self._pending_trade.stop_loss,
             unrealized_pnl=0.0,
         )
+        # Initialize exit manager for the new position
+        atr = self._pending_features.atr if self._pending_features else report.avg_price * 0.01
+        self._exit_manager = ExitManager(config=ExitConfig(), atr=atr)
+
         self.state_machine.transition(EngineState.POSITION_OPEN)
 
         result = self._pending_trade
@@ -181,17 +187,51 @@ class Orchestrator:
 
         self._active_position = pos.model_copy(update={"unrealized_pnl": pnl})
 
-        # Check stop loss
-        hit_stop = (
-            (pos.direction == Direction.LONG and price <= pos.stop_loss)
-            or (pos.direction == Direction.SHORT and price >= pos.stop_loss)
-        )
+        # Use ExitManager for advanced exit logic
+        if self._exit_manager is not None:
+            action = self._exit_manager.update(pos, price)
 
-        if hit_stop:
-            logger.info("stop loss hit: price=%.2f stop=%.2f pnl=%.2f", price, pos.stop_loss, pnl)
-            self._active_position = None
-            self._enter_cooldown()
-            return None
+            if action.update_stop_loss is not None:
+                self._active_position = pos.model_copy(
+                    update={"stop_loss": action.update_stop_loss, "unrealized_pnl": pnl}
+                )
+                logger.info("stop loss updated to %.2f (%s)", action.update_stop_loss, action.reason)
+
+            if action.close:
+                close_qty = action.quantity if action.quantity > 0 else pos.size
+                if close_qty >= pos.size:
+                    # Full close
+                    logger.info("position closed: %s price=%.2f pnl=%.2f reason=%s", pos.symbol, price, pnl, action.reason)
+                    order = self._exit_manager.build_close_order(pos)
+                    try:
+                        await self.execution.execute(order)
+                    except Exception:
+                        logger.exception("close order failed")
+                    self._active_position = None
+                    self._exit_manager = None
+                    self._enter_cooldown()
+                    return None
+                else:
+                    # Partial close
+                    logger.info("partial close: %.4f of %.4f reason=%s", close_qty, pos.size, action.reason)
+                    order = self._exit_manager.build_close_order(pos, quantity=close_qty)
+                    try:
+                        await self.execution.execute(order)
+                    except Exception:
+                        logger.exception("partial close order failed")
+                    remaining = pos.size - close_qty
+                    self._active_position = pos.model_copy(update={"size": remaining, "unrealized_pnl": pnl})
+        else:
+            # Fallback: basic stop loss
+            hit_stop = (
+                (pos.direction == Direction.LONG and price <= pos.stop_loss)
+                or (pos.direction == Direction.SHORT and price >= pos.stop_loss)
+            )
+            if hit_stop:
+                logger.info("stop loss hit: price=%.2f stop=%.2f pnl=%.2f", price, pos.stop_loss, pnl)
+                self._active_position = None
+                self._enter_cooldown()
+                return None
 
         logger.debug("position open: %s pnl=%.2f price=%.2f", pos.symbol, pnl, price)
         return None
