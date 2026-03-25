@@ -175,7 +175,8 @@ class BacktestEngine:
         initial_equity: float = 10_000.0,
         atr_risk_multiplier: float = 1.5,
         max_position_pct: float = 0.02,
-        take_profit_pct: float = 0.15,  # 15% PnL on position
+        take_profit_pct: float = 0.15,  # TP1: 15% PnL on position
+        take_profit2_pct: float = 1.2,  # TP2: 120% PnL — full close
         breakeven_after_tp: bool = True,  # Move SL to entry after TP1
     ) -> None:
         self.analytics = analytics
@@ -185,6 +186,7 @@ class BacktestEngine:
         self.atr_multiplier = atr_risk_multiplier
         self.max_position_pct = max_position_pct
         self.take_profit_pct = take_profit_pct
+        self.take_profit2_pct = take_profit2_pct
         self.breakeven_after_tp = breakeven_after_tp
 
     def run(self, data: list[MarketDataBundle]) -> BacktestResult:
@@ -267,6 +269,12 @@ class BacktestEngine:
 
         notional = pos.entry_price * pos.quantity
         pnl_pct = pnl / notional if notional > 0 else 0.0
+
+        # Check TP2: +120-150% PnL -> full close with profit
+        if pnl_pct >= self.take_profit2_pct:
+            logger.debug("TP2 hit (%.1f%%), closing position", pnl_pct * 100)
+            fee = price * pos.quantity * FEE_RATE
+            return True, pnl, fee
 
         # Check TP1: +15% PnL on position -> move SL to entry (breakeven)
         if not pos.tp1_hit and pnl_pct >= self.take_profit_pct:

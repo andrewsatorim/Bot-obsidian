@@ -226,7 +226,8 @@ def run_backtest(bundles):
             strategy=strategy,
             risk=risk,
             initial_equity=10_000.0,
-            take_profit_pct=0.15,       # TP1 at +15% PnL
+            take_profit_pct=0.15,       # TP1 at +15% PnL -> SL to entry
+            take_profit2_pct=1.2,       # TP2 at +120% PnL -> full close
             breakeven_after_tp=True,    # Move SL to entry after TP1
         )
         result = engine.run(bundles)
