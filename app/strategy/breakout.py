@@ -11,8 +11,8 @@ from app.ports.strategy_port import StrategyPort
 
 logger = logging.getLogger(__name__)
 
-VOLUME_SPIKE_MIN = 1.5
-OI_TREND_MIN = 0.03
+VOLUME_SPIKE_MIN = 1.2
+OI_TREND_MIN = 0.01
 
 
 class BreakoutStrategy(StrategyPort):

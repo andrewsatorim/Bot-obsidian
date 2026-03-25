@@ -4,11 +4,7 @@ Usage:
     pip install ccxt
     python scripts/okx_backtest.py
 
-This will:
-1. Download 1000 hourly candles from OKX BTC-USDT-SWAP
-2. Download funding rate history
-3. Run backtest with all 3 strategies
-4. Print full metrics report
+Downloads 1000 hourly candles, funding rate history, runs all strategies.
 """
 from __future__ import annotations
 
@@ -18,7 +14,6 @@ import os
 import sys
 import time
 
-# Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import ccxt
@@ -30,21 +25,46 @@ def download_candles(
     timeframe: str = "1h",
     limit: int = 1000,
 ) -> list[list]:
-    """Download OHLCV candles from OKX."""
+    """Download OHLCV candles from OKX using pagination."""
     print(f"Downloading {limit} candles for {symbol} ({timeframe})...")
     all_candles = []
-    since = None
+
+    # OKX returns newest first by default; we paginate backwards
+    # Start from now, go back in time
+    end_ts = int(time.time() * 1000)
 
     while len(all_candles) < limit:
-        batch_limit = min(100, limit - len(all_candles))
-        candles = exchange.fetch_ohlcv(symbol, timeframe, since=since, limit=batch_limit)
+        batch_limit = min(300, limit - len(all_candles))  # OKX allows up to 300
+        try:
+            candles = exchange.fetch_ohlcv(
+                symbol, timeframe, limit=batch_limit,
+                params={"before": str(end_ts)} if all_candles else {},
+            )
+        except Exception as e:
+            print(f"  fetch error: {e}, retrying...")
+            time.sleep(1)
+            try:
+                candles = exchange.fetch_ohlcv(symbol, timeframe, limit=batch_limit)
+            except Exception:
+                break
+
         if not candles:
             break
-        all_candles.extend(candles)
-        since = candles[-1][0] + 1
-        print(f"  fetched {len(all_candles)}/{limit} candles")
-        time.sleep(0.2)  # Rate limiting
 
+        # Deduplicate and sort
+        existing_ts = {c[0] for c in all_candles}
+        new_candles = [c for c in candles if c[0] not in existing_ts]
+        if not new_candles:
+            break
+
+        all_candles.extend(new_candles)
+        # Move end_ts to oldest candle for next page
+        end_ts = min(c[0] for c in new_candles)
+        print(f"  fetched {len(all_candles)}/{limit} candles")
+        time.sleep(0.3)
+
+    # Sort chronologically
+    all_candles.sort(key=lambda c: c[0])
     print(f"Total candles: {len(all_candles)}")
     return all_candles
 
@@ -52,28 +72,42 @@ def download_candles(
 def download_funding_history(
     exchange: ccxt.Exchange,
     symbol: str = "BTC/USDT:USDT",
-    limit: int = 100,
 ) -> list[dict]:
-    """Download funding rate history from OKX."""
+    """Download as much funding rate history as possible."""
     print(f"Downloading funding rate history for {symbol}...")
+    all_rates = []
+
     try:
-        rates = exchange.fetch_funding_rate_history(symbol, limit=limit)
-        print(f"Funding rates: {len(rates)}")
-        return rates
+        # Try paginated fetch
+        since = int((time.time() - 90 * 86400) * 1000)  # 90 days back
+        for _ in range(10):  # Max 10 pages
+            rates = exchange.fetch_funding_rate_history(symbol, since=since, limit=100)
+            if not rates:
+                break
+            all_rates.extend(rates)
+            since = rates[-1].get("timestamp", 0) + 1
+            time.sleep(0.3)
     except Exception as e:
-        print(f"Funding rate history not available: {e}")
-        return []
+        print(f"  paginated fetch failed: {e}")
+        # Fallback: single fetch
+        try:
+            rates = exchange.fetch_funding_rate_history(symbol, limit=100)
+            all_rates = rates
+        except Exception as e2:
+            print(f"  funding history not available: {e2}")
+
+    print(f"Funding rates: {len(all_rates)}")
+    return all_rates
 
 
 def save_csv(candles: list[list], path: str) -> None:
-    """Save candles to CSV for HistoricalDataFeed."""
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["timestamp", "open", "high", "low", "close", "volume"])
         for c in candles:
             writer.writerow([int(c[0] / 1000), c[1], c[2], c[3], c[4], c[5]])
-    print(f"Saved to {path}")
+    print(f"Saved {len(candles)} candles to {path}")
 
 
 def build_bundles(candles: list[list], funding_rates: list[dict]):
@@ -84,17 +118,25 @@ def build_bundles(candles: list[list], funding_rates: list[dict]):
     bundles = []
     history_size = 50
 
-    # Build funding rate lookup by approximate timestamp
+    # Build funding rate lookup: hour -> rate
     funding_map: dict[int, float] = {}
     for fr in funding_rates:
-        ts = int(fr.get("timestamp", 0) / 1000)
+        ts_ms = fr.get("timestamp", 0)
         rate = float(fr.get("fundingRate", 0))
-        funding_map[ts // 3600] = rate
+        hour_key = int(ts_ms / 1000) // 3600
+        funding_map[hour_key] = rate
+
+    # Build cumulative funding history for z-score calculation
+    sorted_rates = sorted(funding_map.items())
+    all_funding_values = [r for _, r in sorted_rates] if sorted_rates else [0.0]
+
+    print(f"Building {len(candles) - history_size} bundles (history_size={history_size})...")
+    print(f"Funding rate range: {min(all_funding_values):.6f} to {max(all_funding_values):.6f}")
 
     for i in range(history_size, len(candles)):
         c = candles[i]
         ts = int(c[0] / 1000)
-        price = float(c[4])  # close
+        price = float(c[4])
         volume = float(c[5])
         spread = price * 0.0001
 
@@ -104,32 +146,39 @@ def build_bundles(candles: list[list], funding_rates: list[dict]):
             volume=volume,
             bid=price - spread / 2,
             ask=price + spread / 2,
-            timestamp=ts,
+            timestamp=max(ts, 1),
         )
 
         start = max(0, i - history_size)
         price_history = [float(candles[j][4]) for j in range(start, i + 1)]
         volume_history = [float(candles[j][5]) for j in range(start, i + 1)]
 
-        # Approximate funding history from the window
+        # OI history: approximate from volume changes
+        oi_history = [float(candles[j][5]) * 0.1 for j in range(start, i + 1)]
+
+        # Funding history: use all known rates up to this point
+        # This gives the strategy enough data for z-score calculation
+        candle_hour = ts // 3600
         funding_history = []
-        for j in range(start, i + 1):
-            hour_key = int(candles[j][0] / 1000) // 3600
-            if hour_key in funding_map:
-                funding_history.append(funding_map[hour_key])
+        for hour_key, rate in sorted_rates:
+            if hour_key <= candle_hour:
+                funding_history.append(rate)
+        if not funding_history:
+            funding_history = [0.0]
 
         bundles.append(MarketDataBundle(
             market=snapshot,
             price_history=price_history,
             volume_history=volume_history,
-            funding_history=funding_history if funding_history else [0.0],
+            oi_history=oi_history,
+            funding_history=funding_history,
         ))
 
+    print(f"Built {len(bundles)} bundles")
     return bundles
 
 
 def run_backtest(bundles):
-    """Run backtest with all strategies."""
     from app.analytics.feature_engine import FeatureEngine
     from app.backtest.engine import BacktestEngine
     from app.config import Settings
@@ -178,29 +227,31 @@ def run_backtest(bundles):
 
 
 def main():
-    # Initialize OKX exchange (no API key needed for public data)
-    exchange = ccxt.okx({
-        "enableRateLimit": True,
-    })
+    exchange = ccxt.okx({"enableRateLimit": True})
 
     symbol = "BTC/USDT:USDT"
 
     # 1. Download data
     candles = download_candles(exchange, symbol, "1h", limit=1000)
-    funding = download_funding_history(exchange, symbol, limit=100)
+    funding = download_funding_history(exchange, symbol)
 
-    # 2. Save to CSV
+    if len(candles) < 100:
+        print(f"\nWARNING: Only {len(candles)} candles downloaded. Need 100+ for meaningful backtest.")
+        print("Check if OKX API is accessible from this server.\n")
+
+    # 2. Save raw data
     save_csv(candles, "data/okx_btc_1h.csv")
-
-    # 3. Save funding to JSON
     os.makedirs("data", exist_ok=True)
     with open("data/okx_funding.json", "w") as f:
         json.dump(funding, f, indent=2, default=str)
     print(f"Saved funding data to data/okx_funding.json")
 
-    # 4. Build bundles and run backtest
+    # 3. Build bundles and run backtest
     bundles = build_bundles(candles, funding)
-    run_backtest(bundles)
+    if bundles:
+        run_backtest(bundles)
+    else:
+        print("ERROR: No bundles built. Check data download.")
 
 
 if __name__ == "__main__":

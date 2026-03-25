@@ -11,8 +11,8 @@ from app.ports.strategy_port import StrategyPort
 
 logger = logging.getLogger(__name__)
 
-FUNDING_ZSCORE_THRESHOLD = 2.0
-MAX_VOLATILITY = 0.05
+FUNDING_ZSCORE_THRESHOLD = 1.5
+MAX_VOLATILITY = 0.08
 NEWS_OPPOSITION_THRESHOLD = 0.5
 
 
