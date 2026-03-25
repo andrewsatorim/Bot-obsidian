@@ -30,31 +30,49 @@ CANDLE_LIMIT = 1500  # ~31 days of 30min candles (48 per day × 31)
 
 
 def download_candles(exchange, symbol: str, timeframe: str, limit: int) -> list[list]:
-    """Download OHLCV candles with pagination."""
+    """Download OHLCV candles with proper OKX pagination (going back in time)."""
     all_candles = []
-    end_ts = int(time.time() * 1000)
 
+    # First fetch — latest candles
+    try:
+        candles = exchange.fetch_ohlcv(symbol, timeframe, limit=min(300, limit))
+    except Exception as e:
+        print(f"    error: {e}")
+        return []
+
+    if not candles:
+        return []
+    all_candles.extend(candles)
+    print(f"  {len(all_candles)}", end="", flush=True)
+
+    # Paginate backwards using 'since' with oldest timestamp minus 1
     while len(all_candles) < limit:
-        batch = min(300, limit - len(all_candles))
+        oldest_ts = min(c[0] for c in all_candles)
+        # Go further back: fetch candles BEFORE the oldest we have
+        # OKX: use 'after' param (returns candles older than this timestamp)
         try:
-            candles = exchange.fetch_ohlcv(
-                symbol, timeframe, limit=batch,
-                params={"before": str(end_ts)} if all_candles else {},
+            batch = exchange.fetch_ohlcv(
+                symbol, timeframe, limit=300,
+                params={"after": str(oldest_ts)},
             )
         except Exception as e:
-            print(f"    error fetching {symbol}: {e}")
+            print(f" err:{e}", end="")
             break
-        if not candles:
+
+        if not batch:
             break
+
         existing = {c[0] for c in all_candles}
-        new = [c for c in candles if c[0] not in existing]
+        new = [c for c in batch if c[0] not in existing]
         if not new:
             break
+
         all_candles.extend(new)
-        end_ts = min(c[0] for c in new)
+        print(f"..{len(all_candles)}", end="", flush=True)
         time.sleep(0.3)
 
     all_candles.sort(key=lambda c: c[0])
+    print(f" total={len(all_candles)}")
     return all_candles
 
 
