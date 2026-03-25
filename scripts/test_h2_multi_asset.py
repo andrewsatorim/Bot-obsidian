@@ -21,14 +21,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Top-10 perp symbols on OKX
 SYMBOLS = [
     "BTC/USDT:USDT",
-    "DOGE/USDT:USDT",
-    "SOL/USDT:USDT",
 ]
 
 LEVERAGE = 30
 MARGIN_PCT = 0.20  # 20% of capital per trade
 TIMEFRAME = "30m"
-CANDLE_LIMIT = 500
+CANDLE_LIMIT = 1500  # ~31 days of 30min candles (48 per day × 31)
 
 
 def download_candles(exchange, symbol: str, timeframe: str, limit: int) -> list[list]:
