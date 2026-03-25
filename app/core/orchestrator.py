@@ -138,6 +138,9 @@ class Orchestrator:
 
         order = self._build_order(self._pending_trade, self._pending_quantity)
         try:
+            # Update paper executor with current price if applicable
+            if hasattr(self.execution, "set_price") and self._pending_trade:
+                self.execution.set_price(self._pending_trade.entry_price)
             report = await self.execution.execute(order)
             logger.info("execution: %s %s qty=%.4f avg_price=%.2f", report.status.value, order.symbol, report.filled_qty, report.avg_price)
         except Exception:

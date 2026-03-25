@@ -23,6 +23,10 @@ dev = [
 [project.scripts]
 bot-obsidian = "app.main:main"
 
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["tests*", "scripts*", "data*"]
+
 [tool.black]
 line-length = 100
 
