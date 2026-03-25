@@ -183,9 +183,12 @@ def run_backtest(bundles):
     from app.backtest.engine import BacktestEngine
     from app.config import Settings
     from app.risk.risk_manager import RiskManager
+    from app.strategy.bollinger_reversion import BollingerMeanReversionStrategy
     from app.strategy.breakout import BreakoutStrategy
     from app.strategy.funding_mean_reversion import FundingMeanReversionStrategy
     from app.strategy.fusion import StrategyFusion
+    from app.strategy.liquidation_squeeze import LiquidationSqueezeStrategy
+    from app.strategy.oi_divergence import OIDivergenceStrategy
     from app.strategy.trend_following import TrendFollowingStrategy
 
     settings = Settings(account_equity=10_000.0, paper_trading=True)
@@ -194,14 +197,20 @@ def run_backtest(bundles):
     symbol = "BTC/USDT:USDT"
 
     strategies = {
+        "BollingerReversion": BollingerMeanReversionStrategy(symbol=symbol),
+        "OI Divergence": OIDivergenceStrategy(symbol=symbol),
+        "LiquidationSqueeze": LiquidationSqueezeStrategy(symbol=symbol),
         "FundingMeanReversion": FundingMeanReversionStrategy(symbol=symbol),
         "Breakout": BreakoutStrategy(symbol=symbol),
         "TrendFollowing": TrendFollowingStrategy(symbol=symbol),
-        "Fusion (all 3)": StrategyFusion(
+        "Fusion (all 6)": StrategyFusion(
             strategies=[
-                (FundingMeanReversionStrategy(symbol=symbol), 1.0),
-                (BreakoutStrategy(symbol=symbol), 0.8),
-                (TrendFollowingStrategy(symbol=symbol), 0.7),
+                (BollingerMeanReversionStrategy(symbol=symbol), 1.2),
+                (OIDivergenceStrategy(symbol=symbol), 1.1),
+                (LiquidationSqueezeStrategy(symbol=symbol), 1.0),
+                (FundingMeanReversionStrategy(symbol=symbol), 0.9),
+                (TrendFollowingStrategy(symbol=symbol), 0.8),
+                (BreakoutStrategy(symbol=symbol), 0.7),
             ],
             min_agreement=1,
             min_strength=0.3,

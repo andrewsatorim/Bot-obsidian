@@ -14,9 +14,12 @@ from app.logging_config import setup_logging
 from app.monitoring.health import HealthCheck
 from app.monitoring.metrics import MetricsCollector
 from app.risk.risk_manager import RiskManager
+from app.strategy.bollinger_reversion import BollingerMeanReversionStrategy
 from app.strategy.breakout import BreakoutStrategy
 from app.strategy.funding_mean_reversion import FundingMeanReversionStrategy
 from app.strategy.fusion import StrategyFusion
+from app.strategy.liquidation_squeeze import LiquidationSqueezeStrategy
+from app.strategy.oi_divergence import OIDivergenceStrategy
 from app.strategy.trend_following import TrendFollowingStrategy
 from app.telegram.bot_adapter import TelegramBotAdapter
 
@@ -30,12 +33,22 @@ def _handle_signal(*_: object) -> None:
 
 
 def _build_strategy(symbol: str):
-    """Build a fused strategy combining all sub-strategies."""
+    """Build a fused strategy combining all 6 sub-strategies."""
     funding = FundingMeanReversionStrategy(symbol=symbol)
     breakout = BreakoutStrategy(symbol=symbol)
     trend = TrendFollowingStrategy(symbol=symbol)
+    bollinger = BollingerMeanReversionStrategy(symbol=symbol)
+    oi_div = OIDivergenceStrategy(symbol=symbol)
+    liq_squeeze = LiquidationSqueezeStrategy(symbol=symbol)
     return StrategyFusion(
-        strategies=[(funding, 1.0), (breakout, 0.8), (trend, 0.7)],
+        strategies=[
+            (bollinger, 1.2),       # Highest weight — most stable in crypto
+            (oi_div, 1.1),          # Strong edge on derivatives
+            (liq_squeeze, 1.0),     # High R:R on cascades
+            (funding, 0.9),         # Funding mean-reversion
+            (trend, 0.8),           # Trend following
+            (breakout, 0.7),        # Breakout
+        ],
         min_agreement=1,
         min_strength=0.3,
     )
