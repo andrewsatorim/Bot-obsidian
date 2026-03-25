@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # Core
     symbol: str = "BTC/USDT:USDT"
+    symbols: list[str] = ["BTC/USDT:USDT", "DOGE/USDT:USDT", "SOL/USDT:USDT"]
     scan_interval_sec: float = 10.0
     cooldown_sec: float = 60.0
 
