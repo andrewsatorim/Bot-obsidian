@@ -1,9 +1,13 @@
-from pydantic import BaseModel
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+from app.models.enums import RegimeLabel
 
 
 class FeatureVector(BaseModel):
-    price: float
-    atr: float
+    price: float = Field(ge=0)
+    atr: float = Field(ge=0)
     volatility_regime: float
 
     volume_ratio: float
@@ -15,8 +19,8 @@ class FeatureVector(BaseModel):
     funding: float
     funding_zscore: float
 
-    spread: float
-    slippage_estimate: float
+    spread: float = Field(ge=0)
+    slippage_estimate: float = Field(ge=0)
 
     liquidation_above: float
     liquidation_below: float
@@ -24,4 +28,4 @@ class FeatureVector(BaseModel):
     news_score: float
     onchain_score: float
 
-    regime_label: str
+    regime_label: RegimeLabel

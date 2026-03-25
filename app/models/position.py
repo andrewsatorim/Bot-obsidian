@@ -1,10 +1,14 @@
-from pydantic import BaseModel
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+from app.models.enums import Direction
 
 
 class Position(BaseModel):
     symbol: str
-    direction: str
-    size: float
-    entry_price: float
-    stop_loss: float
+    direction: Direction
+    size: float = Field(gt=0)
+    entry_price: float = Field(gt=0)
+    stop_loss: float = Field(gt=0)
     unrealized_pnl: float

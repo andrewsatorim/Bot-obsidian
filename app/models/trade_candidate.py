@@ -1,17 +1,22 @@
+from __future__ import annotations
+
 from typing import Optional
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
+
+from app.models.enums import Direction, SetupType
 
 
 class TradeCandidate(BaseModel):
     symbol: str
-    direction: str
-    setup_type: str
-    entry_price: float
-    stop_loss: float
-    take_profit: Optional[float] = None
-    score: float
+    direction: Direction
+    setup_type: SetupType
+    entry_price: float = Field(gt=0)
+    stop_loss: float = Field(gt=0)
+    take_profit: Optional[float] = Field(default=None, gt=0)
+    score: float = Field(ge=0, le=1)
     expected_value: float
-    confidence: float
-    risk_multiplier: float = 1.0
+    confidence: float = Field(ge=0, le=1)
+    risk_multiplier: float = Field(default=1.0, gt=0, le=5.0)
     venue_hint: Optional[str] = None
     notes: Optional[str] = None

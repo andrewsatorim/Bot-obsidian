@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from typing import Iterable
+
+logger = logging.getLogger(__name__)
 
 
 class EngineState(str, Enum):
@@ -42,12 +45,14 @@ class StateMachine:
         return self._state
 
     def can_transition(self, next_state: EngineState) -> bool:
-        return next_state in self._ALLOWED_TRANSITIONS[self._state]
+        return next_state in self._ALLOWED_TRANSITIONS.get(self._state, set())
 
     def transition(self, next_state: EngineState) -> EngineState:
         if not self.can_transition(next_state):
             raise ValueError(f"Invalid transition: {self._state} -> {next_state}")
+        prev = self._state
         self._state = next_state
+        logger.info("state transition: %s -> %s", prev, next_state)
         return self._state
 
     def allowed_transitions(self) -> Iterable[EngineState]:
