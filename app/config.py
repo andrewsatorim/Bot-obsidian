@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Core
-    symbol: str = "BTC/USDT"
+    symbol: str = "BTC/USDT:USDT"
     scan_interval_sec: float = 10.0
     cooldown_sec: float = 60.0
 
@@ -19,9 +19,10 @@ class Settings(BaseSettings):
     account_equity: float = Field(default=10_000.0, gt=0)
 
     # Exchange
-    exchange_id: str = "binance"
+    exchange_id: str = "okx"
     exchange_api_key: str = ""
     exchange_api_secret: str = ""
+    exchange_passphrase: str = ""  # Required for OKX
     paper_trading: bool = True
 
     # Telegram

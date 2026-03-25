@@ -19,11 +19,19 @@ OHLCV_LIMIT = 100
 class CcxtDataFeed(DataFeedPort):
     """Live data feed via ccxt (Binance, Bybit, etc.)."""
 
-    def __init__(self, exchange_id: str, api_key: str = "", api_secret: str = "") -> None:
+    def __init__(
+        self,
+        exchange_id: str,
+        api_key: str = "",
+        api_secret: str = "",
+        passphrase: str = "",
+    ) -> None:
         config: dict = {"enableRateLimit": True}
         if api_key:
             config["apiKey"] = api_key
             config["secret"] = api_secret
+        if passphrase:
+            config["password"] = passphrase  # OKX requires passphrase
         exchange_cls = getattr(ccxt_async, exchange_id, None)
         if exchange_cls is None:
             raise ValueError(f"Unknown exchange: {exchange_id}")

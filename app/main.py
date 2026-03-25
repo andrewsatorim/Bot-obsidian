@@ -56,8 +56,8 @@ async def run() -> None:
     else:
         from app.feeds.ccxt_feed import CcxtDataFeed
         from app.execution.ccxt_executor import CcxtExecutor
-        data_feed = CcxtDataFeed(settings.exchange_id, settings.exchange_api_key, settings.exchange_api_secret)
-        execution = CcxtExecutor(settings.exchange_id, settings.exchange_api_key, settings.exchange_api_secret)
+        data_feed = CcxtDataFeed(settings.exchange_id, settings.exchange_api_key, settings.exchange_api_secret, settings.exchange_passphrase)
+        execution = CcxtExecutor(settings.exchange_id, settings.exchange_api_key, settings.exchange_api_secret, settings.exchange_passphrase)
 
     analytics = FeatureEngine()
     strategy = _build_strategy(settings.symbol)

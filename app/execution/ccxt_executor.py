@@ -17,12 +17,20 @@ logger = logging.getLogger(__name__)
 class CcxtExecutor(ExecutionPort):
     """Live order execution via ccxt."""
 
-    def __init__(self, exchange_id: str, api_key: str, api_secret: str) -> None:
+    def __init__(
+        self,
+        exchange_id: str,
+        api_key: str,
+        api_secret: str,
+        passphrase: str = "",
+    ) -> None:
         config = {
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
         }
+        if passphrase:
+            config["password"] = passphrase  # OKX requires passphrase
         exchange_cls = getattr(ccxt_async, exchange_id, None)
         if exchange_cls is None:
             raise ValueError(f"Unknown exchange: {exchange_id}")
