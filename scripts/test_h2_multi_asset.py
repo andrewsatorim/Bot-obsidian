@@ -153,11 +153,12 @@ def run_backtest_for_symbol(symbol: str, bundles, leverage: float):
 
     settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=MARGIN_PCT)
 
-    # H2: Quantum-Fractal (aggressive) with 30x, 20% margin
+    # PLAN B: Fast TP1 (50% close) + trailing on rest
+    # TP1 close big chunk fast → SL to entry → ride the rest risk-free
     h2_levels = [
-        TPLevel(pnl_pct=0.1618, close_pct=0.0618, move_sl_to_entry=True),   # TP1: +16.18% margin
-        TPLevel(pnl_pct=1.00,   close_pct=0.1618, move_sl_to_entry=False),  # TP2: +100% margin
-        TPLevel(pnl_pct=2.618,  close_pct=0.50,   move_sl_to_entry=False),  # TP3: +261.8% margin
+        TPLevel(pnl_pct=0.05,  close_pct=0.50, move_sl_to_entry=True),    # TP1: +5% margin (price +0.17%) → close 50%, SL→entry
+        TPLevel(pnl_pct=0.15,  close_pct=0.25, move_sl_to_entry=False),   # TP2: +15% margin (price +0.5%) → close 25%
+        TPLevel(pnl_pct=0.50,  close_pct=1.0,  move_sl_to_entry=False),   # TP3: +50% margin (price +1.67%) → close rest
     ]
 
     engine = BacktestEngine(
@@ -168,7 +169,7 @@ def run_backtest_for_symbol(symbol: str, bundles, leverage: float):
         leverage=leverage,
         max_position_pct=MARGIN_PCT,
         tp_levels=h2_levels,
-        trailing_stop_atr=1.618,
+        trailing_stop_atr=1.0,  # Tighter trailing: 1.0 × ATR
     )
     return engine.run(bundles)
 
