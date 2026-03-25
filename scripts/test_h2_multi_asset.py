@@ -24,7 +24,7 @@ SYMBOLS = [
 ]
 
 LEVERAGE = 30
-MARGIN_PCT = 0.07  # 7% of capital per trade
+MARGIN_PCT = 0.20  # 20% of capital per trade
 TIMEFRAME = "30m"
 CANDLE_LIMIT = 1500  # ~31 days of 30min candles (48 per day × 31)
 
@@ -162,7 +162,7 @@ def run_backtest_for_symbol(symbol: str, bundles, leverage: float):
 
     engine = BacktestEngine(
         analytics=FeatureEngine(),
-        strategy=OIDivergenceStrategy(symbol=symbol),
+        strategy=OIDivergenceStrategy(symbol=symbol, inverse=True),
         risk=RiskManager(settings),
         initial_equity=10_000.0,
         leverage=leverage,

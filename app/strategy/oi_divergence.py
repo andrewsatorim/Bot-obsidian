@@ -33,6 +33,7 @@ class OIDivergenceStrategy(StrategyPort):
         min_strength: float = 0.5,          # Only strong signals (was 0.35)
         max_volatility: float = 0.06,       # Skip extreme volatility
         cooldown_bars: int = 6,             # Min 3 hours between entries (30min TF)
+        inverse: bool = False,              # Flip all signals LONG<->SHORT
     ) -> None:
         self._symbol = symbol
         self._oi_threshold = oi_threshold
@@ -40,6 +41,7 @@ class OIDivergenceStrategy(StrategyPort):
         self._min_strength = min_strength
         self._max_volatility = max_volatility
         self._cooldown_bars = cooldown_bars
+        self._inverse = inverse
         self._bars_since_signal = 999  # Start ready
 
     def generate_signal(self, features: FeatureVector) -> Optional[Signal]:
@@ -93,6 +95,10 @@ class OIDivergenceStrategy(StrategyPort):
             return None
 
         self._bars_since_signal = 0
+
+        # Inverse mode: flip direction
+        if self._inverse:
+            direction = Direction.SHORT if direction == Direction.LONG else Direction.LONG
 
         signal = Signal(
             symbol=self._symbol,
