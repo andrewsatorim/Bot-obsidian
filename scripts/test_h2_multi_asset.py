@@ -24,7 +24,7 @@ SYMBOLS = [
 ]
 
 LEVERAGE = 30
-MARGIN_PCT = 0.20  # 20% of capital per trade
+MARGIN_PCT = 0.07  # 7% of capital per trade
 TIMEFRAME = "30m"
 CANDLE_LIMIT = 1500  # ~31 days of 30min candles (48 per day × 31)
 
@@ -153,12 +153,11 @@ def run_backtest_for_symbol(symbol: str, bundles, leverage: float):
 
     settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=MARGIN_PCT)
 
-    # PLAN B: Fast TP1 (50% close) + trailing on rest
-    # TP1 close big chunk fast → SL to entry → ride the rest risk-free
+    # H2: Quantum-Fractal (original winning config)
     h2_levels = [
-        TPLevel(pnl_pct=0.05,  close_pct=0.50, move_sl_to_entry=True),    # TP1: +5% margin (price +0.17%) → close 50%, SL→entry
-        TPLevel(pnl_pct=0.15,  close_pct=0.25, move_sl_to_entry=False),   # TP2: +15% margin (price +0.5%) → close 25%
-        TPLevel(pnl_pct=0.50,  close_pct=1.0,  move_sl_to_entry=False),   # TP3: +50% margin (price +1.67%) → close rest
+        TPLevel(pnl_pct=0.1618, close_pct=0.0618, move_sl_to_entry=True),   # TP1: +16.18% margin, close 6.18%
+        TPLevel(pnl_pct=1.00,   close_pct=0.1618, move_sl_to_entry=False),  # TP2: +100% margin, close 16.18%
+        TPLevel(pnl_pct=2.618,  close_pct=0.50,   move_sl_to_entry=False),  # TP3: +261.8% margin, close 50%
     ]
 
     engine = BacktestEngine(
@@ -169,7 +168,7 @@ def run_backtest_for_symbol(symbol: str, bundles, leverage: float):
         leverage=leverage,
         max_position_pct=MARGIN_PCT,
         tp_levels=h2_levels,
-        trailing_stop_atr=1.0,  # Tighter trailing: 1.0 × ATR
+        trailing_stop_atr=1.618,  # Original trailing
     )
     return engine.run(bundles)
 
