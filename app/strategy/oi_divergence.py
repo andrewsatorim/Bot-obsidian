@@ -13,32 +13,38 @@ logger = logging.getLogger(__name__)
 
 
 class OIDivergenceStrategy(StrategyPort):
-    """Detects divergence between price movement and Open Interest.
+    """OI Divergence with enhanced entry filters.
 
-    Logic:
-    - Price UP + OI DOWN = weak rally (longs closing, no new money) -> SHORT
-    - Price DOWN + OI DOWN = weak selloff (shorts closing) -> LONG
-    - Price UP + OI UP = confirmed rally (skip — no divergence)
-    - Price DOWN + OI UP = confirmed selloff (skip)
+    Core: Price UP + OI DOWN = weak rally -> SHORT (and vice versa)
 
-    Why it works:
-    - OI divergence reveals hidden weakness in a move
-    - Institutional traders watch OI; retail doesn't
-    - Historically one of the best edge signals on perpetuals
-    - Works on all timeframes, especially 1h-4h
+    Filters (all must pass):
+    1. OI trend must be strong (< -0.03, not just -0.01)
+    2. Volume confirmation (> 1.3x average)
+    3. Regime must be TREND_UP or TREND_DOWN (not RANGE)
+    4. Minimum strength threshold 0.5
+    5. Cooldown: min_bars between signals
     """
 
     def __init__(
         self,
         symbol: str = "BTC/USDT:USDT",
-        price_threshold: float = 0.003,  # Min price change to consider
-        oi_threshold: float = -0.01,     # OI must be declining
+        oi_threshold: float = -0.03,        # Strong divergence only (was -0.01)
+        min_volume_ratio: float = 1.3,      # Volume must confirm
+        min_strength: float = 0.5,          # Only strong signals (was 0.35)
+        max_volatility: float = 0.06,       # Skip extreme volatility
+        cooldown_bars: int = 6,             # Min 3 hours between entries (30min TF)
     ) -> None:
         self._symbol = symbol
-        self._price_threshold = price_threshold
         self._oi_threshold = oi_threshold
+        self._min_volume_ratio = min_volume_ratio
+        self._min_strength = min_strength
+        self._max_volatility = max_volatility
+        self._cooldown_bars = cooldown_bars
+        self._bars_since_signal = 999  # Start ready
 
     def generate_signal(self, features: FeatureVector) -> Optional[Signal]:
+        self._bars_since_signal += 1
+
         oi_trend = features.oi_trend
         price = features.price
         atr = features.atr
@@ -46,42 +52,47 @@ class OIDivergenceStrategy(StrategyPort):
         if atr == 0 or price == 0:
             return None
 
-        # Need OI to be declining (divergence condition)
+        # Filter 1: Strong OI divergence only
         if oi_trend >= self._oi_threshold:
-            return None  # OI is flat or rising — no divergence
-
-        # Determine price direction from regime
-        if features.regime_label == RegimeLabel.TREND_UP:
-            # Price UP + OI DOWN = bearish divergence -> SHORT
-            direction = Direction.SHORT
-        elif features.regime_label == RegimeLabel.TREND_DOWN:
-            # Price DOWN + OI DOWN = bullish divergence -> LONG
-            direction = Direction.LONG
-        else:
-            # In range, use oi_delta for micro-divergence
-            if features.oi_delta < 0 and features.volume_ratio > 1.0:
-                # Volume up but OI down = closing positions, expect reversal
-                # Use funding to determine direction
-                if features.funding_zscore > 0.5:
-                    direction = Direction.SHORT
-                elif features.funding_zscore < -0.5:
-                    direction = Direction.LONG
-                else:
-                    return None
-            else:
-                return None
-
-        # Skip if volatility is extreme (divergence unreliable)
-        if features.volatility_regime > 0.06:
             return None
 
-        # Strength based on OI divergence magnitude
-        oi_magnitude = abs(oi_trend)
-        strength = min(0.35 + oi_magnitude * 5.0, 1.0)
+        # Filter 2: Must be in a clear trend (not RANGE/VOLATILE)
+        if features.regime_label == RegimeLabel.TREND_UP:
+            direction = Direction.SHORT
+        elif features.regime_label == RegimeLabel.TREND_DOWN:
+            direction = Direction.LONG
+        else:
+            return None  # No range trading — this was source of bad trades
 
-        # Bonus for volume confirmation
+        # Filter 3: Volume confirmation
+        if features.volume_ratio < self._min_volume_ratio:
+            return None
+
+        # Filter 4: Skip extreme volatility
+        if features.volatility_regime > self._max_volatility:
+            return None
+
+        # Filter 5: Cooldown between signals
+        if self._bars_since_signal < self._cooldown_bars:
+            return None
+
+        # Filter 6: Funding alignment (SHORT needs positive funding, LONG needs negative)
+        if direction == Direction.SHORT and features.funding_zscore < 0:
+            return None  # Funding already favors shorts — no divergence edge
+        if direction == Direction.LONG and features.funding_zscore > 0:
+            return None  # Funding already favors longs
+
+        # Strength: based on OI divergence magnitude + volume
+        oi_magnitude = abs(oi_trend)
+        strength = min(0.4 + oi_magnitude * 5.0, 1.0)
         if features.volume_ratio > 1.5:
-            strength = min(strength + 0.15, 1.0)
+            strength = min(strength + 0.1, 1.0)
+
+        # Filter 7: Minimum strength
+        if strength < self._min_strength:
+            return None
+
+        self._bars_since_signal = 0
 
         signal = Signal(
             symbol=self._symbol,
@@ -90,7 +101,8 @@ class OIDivergenceStrategy(StrategyPort):
             timestamp=int(time.time()),
         )
         logger.info(
-            "OI divergence signal: %s strength=%.2f oi_trend=%.4f oi_delta=%.2f regime=%s",
-            direction.value, strength, oi_trend, features.oi_delta, features.regime_label.value,
+            "OI divergence: %s str=%.2f oi=%.4f vol=%.2f fund_z=%.2f regime=%s",
+            direction.value, strength, oi_trend, features.volume_ratio,
+            features.funding_zscore, features.regime_label.value,
         )
         return signal
