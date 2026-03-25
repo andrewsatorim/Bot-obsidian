@@ -226,6 +226,8 @@ def run_backtest(bundles):
             strategy=strategy,
             risk=risk,
             initial_equity=10_000.0,
+            take_profit_pct=0.15,       # TP1 at +15% PnL
+            breakeven_after_tp=True,    # Move SL to entry after TP1
         )
         result = engine.run(bundles)
         print(f"\n--- {name} ---")
@@ -240,8 +242,8 @@ def main():
 
     symbol = "BTC/USDT:USDT"
 
-    # 1. Download data
-    candles = download_candles(exchange, symbol, "1h", limit=1000)
+    # 1. Download data (30min timeframe)
+    candles = download_candles(exchange, symbol, "30m", limit=1000)
     funding = download_funding_history(exchange, symbol)
 
     if len(candles) < 100:
@@ -249,7 +251,7 @@ def main():
         print("Check if OKX API is accessible from this server.\n")
 
     # 2. Save raw data
-    save_csv(candles, "data/okx_btc_1h.csv")
+    save_csv(candles, "data/okx_btc_30m.csv")
     os.makedirs("data", exist_ok=True)
     with open("data/okx_funding.json", "w") as f:
         json.dump(funding, f, indent=2, default=str)

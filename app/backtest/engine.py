@@ -175,6 +175,8 @@ class BacktestEngine:
         initial_equity: float = 10_000.0,
         atr_risk_multiplier: float = 1.5,
         max_position_pct: float = 0.02,
+        take_profit_pct: float = 0.15,  # 15% PnL on position
+        breakeven_after_tp: bool = True,  # Move SL to entry after TP1
     ) -> None:
         self.analytics = analytics
         self.strategy = strategy
@@ -182,6 +184,8 @@ class BacktestEngine:
         self.initial_equity = initial_equity
         self.atr_multiplier = atr_risk_multiplier
         self.max_position_pct = max_position_pct
+        self.take_profit_pct = take_profit_pct
+        self.breakeven_after_tp = breakeven_after_tp
 
     def run(self, data: list[MarketDataBundle]) -> BacktestResult:
         result = BacktestResult(initial_equity=self.initial_equity)
@@ -255,20 +259,29 @@ class BacktestEngine:
         return result
 
     def _check_exit(self, pos: _OpenPosition, price: float, force: bool = False) -> tuple[bool, float, float]:
+        # Calculate current PnL
+        if pos.direction == Direction.LONG:
+            pnl = (price - pos.entry_price) * pos.quantity
+        else:
+            pnl = (pos.entry_price - price) * pos.quantity
+
+        notional = pos.entry_price * pos.quantity
+        pnl_pct = pnl / notional if notional > 0 else 0.0
+
+        # Check TP1: +15% PnL on position -> move SL to entry (breakeven)
+        if not pos.tp1_hit and pnl_pct >= self.take_profit_pct:
+            pos.tp1_hit = True
+            if self.breakeven_after_tp:
+                pos.stop_loss = pos.entry_price  # Breakeven
+                logger.debug("TP1 hit (%.1f%%), SL moved to entry %.2f", pnl_pct * 100, pos.entry_price)
+
+        # Check stop loss
         hit_sl = (
             (pos.direction == Direction.LONG and price <= pos.stop_loss)
             or (pos.direction == Direction.SHORT and price >= pos.stop_loss)
         )
-        hit_tp = pos.take_profit > 0 and (
-            (pos.direction == Direction.LONG and price >= pos.take_profit)
-            or (pos.direction == Direction.SHORT and price <= pos.take_profit)
-        )
 
-        if hit_sl or hit_tp or force:
-            if pos.direction == Direction.LONG:
-                pnl = (price - pos.entry_price) * pos.quantity
-            else:
-                pnl = (pos.entry_price - price) * pos.quantity
+        if hit_sl or force:
             fee = price * pos.quantity * FEE_RATE
             return True, pnl, fee
         return False, 0.0, 0.0
@@ -279,17 +292,14 @@ class BacktestEngine:
         stop_dist = atr * self.atr_multiplier
         if signal.direction == Direction.LONG:
             sl = features.price - stop_dist
-            tp = features.price + stop_dist * 2.0
         else:
             sl = features.price + stop_dist
-            tp = features.price - stop_dist * 2.0
         return TradeCandidate(
             symbol=signal.symbol,
             direction=signal.direction,
             setup_type=SetupType.FUNDING_MEAN_REVERSION,
             entry_price=features.price,
             stop_loss=max(sl, 0.01),
-            take_profit=max(tp, 0.01),
             score=signal.strength,
             expected_value=2.0,
             confidence=signal.strength,
@@ -311,3 +321,4 @@ class _OpenPosition:
     stop_loss: float
     take_profit: float
     entry_idx: int
+    tp1_hit: bool = False
