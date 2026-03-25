@@ -21,18 +21,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Top-10 perp symbols on OKX
 SYMBOLS = [
     "BTC/USDT:USDT",
-    "ETH/USDT:USDT",
-    "SOL/USDT:USDT",
-    "XRP/USDT:USDT",
     "DOGE/USDT:USDT",
-    "ADA/USDT:USDT",
-    "AVAX/USDT:USDT",
-    "LINK/USDT:USDT",
-    "DOT/USDT:USDT",
-    "MATIC/USDT:USDT",
+    "SOL/USDT:USDT",
 ]
 
 LEVERAGE = 30
+MARGIN_PCT = 0.20  # 20% of capital per trade
 TIMEFRAME = "30m"
 CANDLE_LIMIT = 500
 
@@ -141,13 +135,13 @@ def run_backtest_for_symbol(symbol: str, bundles, leverage: float):
     from app.risk.risk_manager import RiskManager
     from app.strategy.oi_divergence import OIDivergenceStrategy
 
-    settings = Settings(account_equity=10_000.0, paper_trading=True)
+    settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=MARGIN_PCT)
 
-    # H2: Quantum-Fractal (aggressive) with 30x
+    # H2: Quantum-Fractal (aggressive) with 30x, 20% margin
     h2_levels = [
-        TPLevel(pnl_pct=0.1618, close_pct=0.0618, move_sl_to_entry=True),
-        TPLevel(pnl_pct=1.00,   close_pct=0.1618, move_sl_to_entry=False),
-        TPLevel(pnl_pct=2.618,  close_pct=0.50,   move_sl_to_entry=False),
+        TPLevel(pnl_pct=0.1618, close_pct=0.0618, move_sl_to_entry=True),   # TP1: +16.18% margin
+        TPLevel(pnl_pct=1.00,   close_pct=0.1618, move_sl_to_entry=False),  # TP2: +100% margin
+        TPLevel(pnl_pct=2.618,  close_pct=0.50,   move_sl_to_entry=False),  # TP3: +261.8% margin
     ]
 
     engine = BacktestEngine(
@@ -156,6 +150,7 @@ def run_backtest_for_symbol(symbol: str, bundles, leverage: float):
         risk=RiskManager(settings),
         initial_equity=10_000.0,
         leverage=leverage,
+        max_position_pct=MARGIN_PCT,
         tp_levels=h2_levels,
         trailing_stop_atr=1.618,
     )
