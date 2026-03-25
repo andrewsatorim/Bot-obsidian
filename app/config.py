@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     cooldown_sec: float = 60.0
 
     # Risk
-    max_position_pct: float = Field(default=0.02, ge=0.001, le=0.1)
+    max_position_pct: float = Field(default=0.20, ge=0.001, le=0.5)
     max_daily_loss_pct: float = Field(default=0.05, ge=0.01, le=0.2)
     atr_risk_multiplier: float = Field(default=1.5, gt=0)
     max_open_positions: int = Field(default=3, ge=1)
