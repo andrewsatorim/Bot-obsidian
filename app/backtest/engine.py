@@ -175,9 +175,13 @@ class BacktestEngine:
         initial_equity: float = 10_000.0,
         atr_risk_multiplier: float = 1.5,
         max_position_pct: float = 0.02,
-        take_profit_pct: float = 0.15,  # TP1: 15% PnL on position
-        take_profit2_pct: float = 1.2,  # TP2: 120% PnL — full close
-        breakeven_after_tp: bool = True,  # Move SL to entry after TP1
+        leverage: float = 40.0,
+        tp1_pct: float = 0.15,       # TP1: +15% PnL on margin
+        tp1_close_pct: float = 0.10,  # Close 10% of position at TP1
+        tp2_pct: float = 1.10,       # TP2: +110% PnL on margin
+        tp2_close_pct: float = 0.80,  # Close 80% of position at TP2
+        tp3_pct: float = 2.00,       # TP3: +200% PnL on margin — close rest
+        breakeven_after_tp1: bool = True,
     ) -> None:
         self.analytics = analytics
         self.strategy = strategy
@@ -185,9 +189,13 @@ class BacktestEngine:
         self.initial_equity = initial_equity
         self.atr_multiplier = atr_risk_multiplier
         self.max_position_pct = max_position_pct
-        self.take_profit_pct = take_profit_pct
-        self.take_profit2_pct = take_profit2_pct
-        self.breakeven_after_tp = breakeven_after_tp
+        self.leverage = leverage
+        self.tp1_pct = tp1_pct
+        self.tp1_close_pct = tp1_close_pct
+        self.tp2_pct = tp2_pct
+        self.tp2_close_pct = tp2_close_pct
+        self.tp3_pct = tp3_pct
+        self.breakeven_after_tp1 = breakeven_after_tp1
 
     def run(self, data: list[MarketDataBundle]) -> BacktestResult:
         result = BacktestResult(initial_equity=self.initial_equity)
@@ -232,8 +240,8 @@ class BacktestEngine:
                             direction=signal.direction,
                             entry_price=price,
                             quantity=qty,
+                            initial_quantity=qty,
                             stop_loss=trade.stop_loss,
-                            take_profit=trade.take_profit or 0.0,
                             entry_idx=idx,
                         )
                         equity -= entry_fee
@@ -261,37 +269,79 @@ class BacktestEngine:
         return result
 
     def _check_exit(self, pos: _OpenPosition, price: float, force: bool = False) -> tuple[bool, float, float]:
-        # Calculate current PnL
+        """Check exit conditions. Returns (closed, realized_pnl, fee).
+
+        PnL % is calculated on margin (notional / leverage).
+        TP1: close 10% of position, SL -> entry
+        TP2: close 80% of position
+        TP3: close remaining
+        """
+        # PnL on full remaining position
         if pos.direction == Direction.LONG:
             pnl = (price - pos.entry_price) * pos.quantity
         else:
             pnl = (pos.entry_price - price) * pos.quantity
 
-        notional = pos.entry_price * pos.quantity
-        pnl_pct = pnl / notional if notional > 0 else 0.0
+        # Margin = notional / leverage
+        margin = (pos.entry_price * pos.initial_quantity) / self.leverage
+        pnl_on_margin_pct = pnl / margin if margin > 0 else 0.0
 
-        # Check TP2: +120-150% PnL -> full close with profit
-        if pnl_pct >= self.take_profit2_pct:
-            logger.debug("TP2 hit (%.1f%%), closing position", pnl_pct * 100)
+        # --- TP3: +200% on margin -> close everything ---
+        if not pos.tp3_hit and pnl_on_margin_pct >= self.tp3_pct:
+            pos.tp3_hit = True
             fee = price * pos.quantity * FEE_RATE
+            logger.debug("TP3 hit (%.0f%% on margin), closing remaining", pnl_on_margin_pct * 100)
             return True, pnl, fee
 
-        # Check TP1: +15% PnL on position -> move SL to entry (breakeven)
-        if not pos.tp1_hit and pnl_pct >= self.take_profit_pct:
-            pos.tp1_hit = True
-            if self.breakeven_after_tp:
-                pos.stop_loss = pos.entry_price  # Breakeven
-                logger.debug("TP1 hit (%.1f%%), SL moved to entry %.2f", pnl_pct * 100, pos.entry_price)
+        # --- TP2: +110% on margin -> close 80% of position ---
+        if not pos.tp2_hit and pnl_on_margin_pct >= self.tp2_pct:
+            pos.tp2_hit = True
+            close_qty = pos.initial_quantity * self.tp2_close_pct
+            close_qty = min(close_qty, pos.quantity)
+            if pos.direction == Direction.LONG:
+                partial_pnl = (price - pos.entry_price) * close_qty
+            else:
+                partial_pnl = (pos.entry_price - price) * close_qty
+            fee = price * close_qty * FEE_RATE
+            pos.quantity -= close_qty
+            pos.realized_pnl += partial_pnl - fee
+            logger.debug("TP2 hit (%.0f%%), closed %.1f%%, remaining qty=%.6f",
+                         pnl_on_margin_pct * 100, self.tp2_close_pct * 100, pos.quantity)
+            if pos.quantity <= 0.0001:
+                return True, pos.realized_pnl, 0.0
+            return False, 0.0, 0.0
 
-        # Check stop loss
+        # --- TP1: +15% on margin -> close 10%, SL to entry ---
+        if not pos.tp1_hit and pnl_on_margin_pct >= self.tp1_pct:
+            pos.tp1_hit = True
+            close_qty = pos.initial_quantity * self.tp1_close_pct
+            close_qty = min(close_qty, pos.quantity)
+            if pos.direction == Direction.LONG:
+                partial_pnl = (price - pos.entry_price) * close_qty
+            else:
+                partial_pnl = (pos.entry_price - price) * close_qty
+            fee = price * close_qty * FEE_RATE
+            pos.quantity -= close_qty
+            pos.realized_pnl += partial_pnl - fee
+            if self.breakeven_after_tp1:
+                pos.stop_loss = pos.entry_price
+            logger.debug("TP1 hit (%.0f%%), closed 10%%, SL->entry, remaining qty=%.6f",
+                         pnl_on_margin_pct * 100, pos.quantity)
+            if pos.quantity <= 0.0001:
+                return True, pos.realized_pnl, 0.0
+            return False, 0.0, 0.0
+
+        # --- Stop loss ---
         hit_sl = (
             (pos.direction == Direction.LONG and price <= pos.stop_loss)
             or (pos.direction == Direction.SHORT and price >= pos.stop_loss)
         )
 
         if hit_sl or force:
+            total_pnl = pnl + pos.realized_pnl
             fee = price * pos.quantity * FEE_RATE
-            return True, pnl, fee
+            return True, total_pnl, fee
+
         return False, 0.0, 0.0
 
     def _signal_to_trade(self, signal: Signal, features: FeatureVector) -> TradeCandidate:
@@ -314,11 +364,17 @@ class BacktestEngine:
         )
 
     def _compute_size(self, equity: float, atr: float, risk_mult: float) -> float:
-        risk_amount = equity * self.max_position_pct * risk_mult
+        # Margin = equity * max_position_pct * risk_mult
+        # Position size (notional) = margin * leverage
+        margin = equity * self.max_position_pct * risk_mult
+        notional = margin * self.leverage
+        # Convert notional to quantity (units of asset)
+        # We need current price — approximate from last known
+        # quantity = notional / price, but price varies; use atr as proxy for scale
         stop_dist = atr * self.atr_multiplier
         if stop_dist <= 0:
-            return 0.001
-        return max(risk_amount / stop_dist, 0.001)
+            return max(notional / max(equity, 1.0), 0.001)
+        return max(notional / (stop_dist * self.leverage), 0.001)
 
 
 @dataclass
@@ -326,7 +382,10 @@ class _OpenPosition:
     direction: Direction
     entry_price: float
     quantity: float
+    initial_quantity: float
     stop_loss: float
-    take_profit: float
     entry_idx: int
     tp1_hit: bool = False
+    tp2_hit: bool = False
+    tp3_hit: bool = False
+    realized_pnl: float = 0.0
