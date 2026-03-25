@@ -164,6 +164,14 @@ class BacktestResult:
 FEE_RATE = 0.001  # 0.1%
 
 
+@dataclass
+class TPLevel:
+    """A single take-profit level."""
+    pnl_pct: float      # PnL % on margin to trigger
+    close_pct: float     # Fraction of INITIAL position to close (0-1)
+    move_sl_to_entry: bool = False  # Move SL to breakeven after this TP
+
+
 class BacktestEngine:
     """Runs a strategy over historical MarketDataBundles and produces metrics."""
 
@@ -176,12 +184,8 @@ class BacktestEngine:
         atr_risk_multiplier: float = 1.5,
         max_position_pct: float = 0.02,
         leverage: float = 40.0,
-        tp1_pct: float = 0.15,       # TP1: +15% PnL on margin
-        tp1_close_pct: float = 0.10,  # Close 10% of position at TP1
-        tp2_pct: float = 1.10,       # TP2: +110% PnL on margin
-        tp2_close_pct: float = 0.80,  # Close 80% of position at TP2
-        tp3_pct: float = 2.00,       # TP3: +200% PnL on margin — close rest
-        breakeven_after_tp1: bool = True,
+        tp_levels: list[TPLevel] | None = None,
+        trailing_stop_atr: float = 0.0,  # 0 = disabled, e.g. 1.618
     ) -> None:
         self.analytics = analytics
         self.strategy = strategy
@@ -190,12 +194,8 @@ class BacktestEngine:
         self.atr_multiplier = atr_risk_multiplier
         self.max_position_pct = max_position_pct
         self.leverage = leverage
-        self.tp1_pct = tp1_pct
-        self.tp1_close_pct = tp1_close_pct
-        self.tp2_pct = tp2_pct
-        self.tp2_close_pct = tp2_close_pct
-        self.tp3_pct = tp3_pct
-        self.breakeven_after_tp1 = breakeven_after_tp1
+        self.tp_levels = tp_levels or []
+        self.trailing_stop_atr = trailing_stop_atr
 
     def run(self, data: list[MarketDataBundle]) -> BacktestResult:
         result = BacktestResult(initial_equity=self.initial_equity)
@@ -243,6 +243,7 @@ class BacktestEngine:
                             initial_quantity=qty,
                             stop_loss=trade.stop_loss,
                             entry_idx=idx,
+                            atr=features.atr,
                         )
                         equity -= entry_fee
 
@@ -269,74 +270,71 @@ class BacktestEngine:
         return result
 
     def _check_exit(self, pos: _OpenPosition, price: float, force: bool = False) -> tuple[bool, float, float]:
-        """Check exit conditions. Returns (closed, realized_pnl, fee).
-
-        PnL % is calculated on margin (notional / leverage).
-        TP1: close 10% of position, SL -> entry
-        TP2: close 80% of position
-        TP3: close remaining
-        """
-        # PnL on full remaining position
+        """Check exit conditions with N-tier TP system + trailing stop."""
+        # Current PnL on remaining qty
         if pos.direction == Direction.LONG:
             pnl = (price - pos.entry_price) * pos.quantity
         else:
             pnl = (pos.entry_price - price) * pos.quantity
 
-        # Margin = notional / leverage
+        # PnL % on margin (based on initial position)
         margin = (pos.entry_price * pos.initial_quantity) / self.leverage
         pnl_on_margin_pct = pnl / margin if margin > 0 else 0.0
 
-        # --- TP3: +200% on margin -> close everything ---
-        if not pos.tp3_hit and pnl_on_margin_pct >= self.tp3_pct:
-            pos.tp3_hit = True
-            fee = price * pos.quantity * FEE_RATE
-            logger.debug("TP3 hit (%.0f%% on margin), closing remaining", pnl_on_margin_pct * 100)
-            return True, pnl, fee
-
-        # --- TP2: +110% on margin -> close 80% of position ---
-        if not pos.tp2_hit and pnl_on_margin_pct >= self.tp2_pct:
-            pos.tp2_hit = True
-            close_qty = pos.initial_quantity * self.tp2_close_pct
-            close_qty = min(close_qty, pos.quantity)
+        # --- Trailing stop update ---
+        if self.trailing_stop_atr > 0 and pos.atr > 0 and pos.tp_hits > 0:
+            trail_dist = self.trailing_stop_atr * pos.atr
             if pos.direction == Direction.LONG:
-                partial_pnl = (price - pos.entry_price) * close_qty
+                if pos.peak_price is None or price > pos.peak_price:
+                    pos.peak_price = price
+                trailing_sl = pos.peak_price - trail_dist
+                if trailing_sl > pos.stop_loss:
+                    pos.stop_loss = trailing_sl
             else:
-                partial_pnl = (pos.entry_price - price) * close_qty
-            fee = price * close_qty * FEE_RATE
-            pos.quantity -= close_qty
-            pos.realized_pnl += partial_pnl - fee
-            logger.debug("TP2 hit (%.0f%%), closed %.1f%%, remaining qty=%.6f",
-                         pnl_on_margin_pct * 100, self.tp2_close_pct * 100, pos.quantity)
-            if pos.quantity <= 0.0001:
-                return True, pos.realized_pnl, 0.0
-            return False, 0.0, 0.0
+                if pos.peak_price is None or price < pos.peak_price:
+                    pos.peak_price = price
+                trailing_sl = pos.peak_price + trail_dist
+                if trailing_sl < pos.stop_loss:
+                    pos.stop_loss = trailing_sl
 
-        # --- TP1: +15% on margin -> close 10%, SL to entry ---
-        if not pos.tp1_hit and pnl_on_margin_pct >= self.tp1_pct:
-            pos.tp1_hit = True
-            close_qty = pos.initial_quantity * self.tp1_close_pct
-            close_qty = min(close_qty, pos.quantity)
-            if pos.direction == Direction.LONG:
-                partial_pnl = (price - pos.entry_price) * close_qty
-            else:
-                partial_pnl = (pos.entry_price - price) * close_qty
-            fee = price * close_qty * FEE_RATE
-            pos.quantity -= close_qty
-            pos.realized_pnl += partial_pnl - fee
-            if self.breakeven_after_tp1:
-                pos.stop_loss = pos.entry_price
-            logger.debug("TP1 hit (%.0f%%), closed 10%%, SL->entry, remaining qty=%.6f",
-                         pnl_on_margin_pct * 100, pos.quantity)
-            if pos.quantity <= 0.0001:
-                return True, pos.realized_pnl, 0.0
-            return False, 0.0, 0.0
+        # --- Check TP levels (highest first) ---
+        for i in range(len(self.tp_levels) - 1, -1, -1):
+            tp = self.tp_levels[i]
+            if i in pos.tp_levels_hit:
+                continue
+            if pnl_on_margin_pct >= tp.pnl_pct:
+                pos.tp_levels_hit.add(i)
+                pos.tp_hits += 1
+
+                if tp.close_pct >= 0.999:
+                    # Full close — this is the final TP
+                    total_pnl = pnl + pos.realized_pnl
+                    fee = price * pos.quantity * FEE_RATE
+                    return True, total_pnl, fee
+
+                # Partial close
+                close_qty = pos.initial_quantity * tp.close_pct
+                close_qty = min(close_qty, pos.quantity)
+                if pos.direction == Direction.LONG:
+                    partial_pnl = (price - pos.entry_price) * close_qty
+                else:
+                    partial_pnl = (pos.entry_price - price) * close_qty
+                fee = price * close_qty * FEE_RATE
+                pos.quantity -= close_qty
+                pos.realized_pnl += partial_pnl - fee
+
+                if tp.move_sl_to_entry:
+                    pos.stop_loss = pos.entry_price
+
+                if pos.quantity <= 0.0001:
+                    return True, pos.realized_pnl, 0.0
+                break  # Process one TP per tick
 
         # --- Stop loss ---
         hit_sl = (
             (pos.direction == Direction.LONG and price <= pos.stop_loss)
             or (pos.direction == Direction.SHORT and price >= pos.stop_loss)
         )
-
         if hit_sl or force:
             total_pnl = pnl + pos.realized_pnl
             fee = price * pos.quantity * FEE_RATE
@@ -385,7 +383,8 @@ class _OpenPosition:
     initial_quantity: float
     stop_loss: float
     entry_idx: int
-    tp1_hit: bool = False
-    tp2_hit: bool = False
-    tp3_hit: bool = False
+    atr: float = 0.0
+    tp_levels_hit: set = field(default_factory=set)
+    tp_hits: int = 0
     realized_pnl: float = 0.0
+    peak_price: float | None = None

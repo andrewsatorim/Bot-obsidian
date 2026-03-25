@@ -1,3 +1,3 @@
-from app.backtest.engine import BacktestEngine, BacktestResult, BacktestTrade
+from app.backtest.engine import BacktestEngine, BacktestResult, BacktestTrade, TPLevel
 
-__all__ = ["BacktestEngine", "BacktestResult", "BacktestTrade"]
+__all__ = ["BacktestEngine", "BacktestResult", "BacktestTrade", "TPLevel"]
