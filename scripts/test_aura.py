@@ -195,7 +195,7 @@ class Trade:
     exit_idx: int
 
 
-def run_backtest(candles, oi_filters=None):
+def run_backtest(candles, oi_filters=None, sl_pct=-0.50, margin_pct=0.15):
     aura = AuraV14()
     equity = 10_000.0
     equity_curve = [equity]
@@ -226,12 +226,12 @@ def run_backtest(candles, oi_filters=None):
             pnl_pct_close = pnl_close / margin if margin > 0 else 0
             pnl_pct_worst = pnl_worst / margin if margin > 0 else 0
 
-            # --- STOP LOSS: -50% on margin ---
-            if pnl_pct_worst <= -0.50:
+            # --- STOP LOSS ---
+            if pnl_pct_worst <= sl_pct:
                 total_pnl = pnl_worst + position.realized_pnl
                 fee = close * position.quantity * FEE_RATE
                 equity += total_pnl - fee
-                trades.append(Trade(position.direction, position.entry_price, close, total_pnl - fee, sum(position.tp_hit), "SL(-50%)", 0, idx))
+                trades.append(Trade(position.direction, position.entry_price, close, total_pnl - fee, sum(position.tp_hit), f"SL({sl_pct:.0%})", 0, idx))
                 position = None
                 equity_curve.append(equity)
                 continue
@@ -305,7 +305,7 @@ def run_backtest(candles, oi_filters=None):
 
             # Open new position
             if position is None:
-                margin = equity * MARGIN_PCT
+                margin = equity * margin_pct
                 notional = margin * LEVERAGE
                 qty = notional / close if close > 0 else 0
                 entry_fee = notional * FEE_RATE
@@ -430,19 +430,39 @@ def main():
 
     days = len(candles) * 30 / 60 / 24
     print(f"\nData: {len(candles)} candles = {days:.0f} days")
-    print(f"Config: {LEVERAGE}x leverage, {MARGIN_PCT*100:.0f}% margin, SL -50%")
     print(f"TPs: +15%(10%) -> +50%(60%) -> +300%(rest) | Flip on reverse")
-    print(f"Filters: Coinglass OI + L/S ratio + liquidation")
 
-    # Test WITHOUT Coinglass filter
-    print(f"\n--- Without Coinglass filter ---")
-    trades1, curve1, sigs1 = run_backtest(candles, oi_filters=None)
-    print_results(trades1, curve1, sigs1, len(candles))
+    configs = [
+        {"name": "A) SL -50%, 15% margin",           "sl": -0.50, "margin": 0.15, "filters": None},
+        {"name": "B) SL -50%, 15% + Coinglass",       "sl": -0.50, "margin": 0.15, "filters": oi_filters},
+        {"name": "C) SL -25%, 15% margin",            "sl": -0.25, "margin": 0.15, "filters": None},
+        {"name": "D) SL -25%, 15% + Coinglass",       "sl": -0.25, "margin": 0.15, "filters": oi_filters},
+        {"name": "E) SL -50%, 5% margin (safe)",      "sl": -0.50, "margin": 0.05, "filters": None},
+        {"name": "F) SL -25%, 5% margin + Coinglass", "sl": -0.25, "margin": 0.05, "filters": oi_filters},
+    ]
 
-    # Test WITH Coinglass filter
-    print(f"\n--- With Coinglass filter ---")
-    trades2, curve2, sigs2 = run_backtest(candles, oi_filters=oi_filters)
-    print_results(trades2, curve2, sigs2, len(candles))
+    print(f"\n{'='*80}")
+    print(f"{'Config':<35} {'Trades':>6} {'WR':>6} {'PF':>7} {'Return':>8} {'MDD':>7} {'Equity':>10}")
+    print(f"{'-'*80}")
+
+    for cfg in configs:
+        trades, curve, sigs = run_backtest(candles, oi_filters=cfg["filters"], sl_pct=cfg["sl"], margin_pct=cfg["margin"])
+        n = len(trades)
+        wr = sum(1 for t in trades if t.pnl > 0) / n * 100 if n else 0
+        gp = sum(t.pnl for t in trades if t.pnl > 0)
+        gl = abs(sum(t.pnl for t in trades if t.pnl < 0))
+        pf = gp / gl if gl > 0 else float('inf')
+        ret = (curve[-1] - 10000) / 10000 * 100
+        peak = 10000
+        mdd = 0
+        for eq in curve:
+            if eq > peak: peak = eq
+            dd = (peak - eq) / peak * 100
+            if dd > mdd: mdd = dd
+        pf_s = f"{pf:.2f}" if pf < 100 else "inf"
+        print(f"{cfg['name']:<35} {n:>6} {wr:>5.1f}% {pf_s:>7} {ret:>+7.2f}% {mdd:>6.2f}% ${curve[-1]:>9.2f}")
+
+    print(f"{'='*80}")
 
 
 if __name__ == "__main__":
