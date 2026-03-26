@@ -1,7 +1,7 @@
-"""Test SuperStrategy vs individual strategies on 1 month BTC data.
+"""Test SuperStrategy on 1H timeframe.
 
-SuperStrategy = best filters from all 7 strategies combined.
-Target: 5-15 trades/month, high WR, positive PF.
+Score >= 4/5 factors + cooldown 12 bars (12h).
+Target: 5-15 trades/month.
 
 Usage:
     python scripts/test_super.py
@@ -21,6 +21,8 @@ SYMBOL = "BTC-USDT-SWAP"
 CCXT_SYMBOL = "BTC/USDT:USDT"
 BASE_URL = "https://www.okx.com"
 COINGLASS_KEY = "7abff9b1c52e41ddaff0d72ff2a8da09"
+TIMEFRAME = "1H"
+CANDLE_LIMIT = 1500  # ~62 days of 1H candles
 
 
 def okx_get(path, params=None):
@@ -36,7 +38,7 @@ def coinglass_get(path, params=None):
     return resp.json()
 
 
-def download_candles(inst_id, bar="30m", limit=1500):
+def download_candles(inst_id, bar, limit):
     print(f"Downloading {limit} candles ({bar})...", end=" ", flush=True)
     all_c = []
     after = ""
@@ -65,7 +67,7 @@ def download_oi(inst_id):
     all_oi = []
     after = ""
     while len(all_oi) < 1500:
-        params = {"instId": inst_id, "period": "30m", "limit": "100"}
+        params = {"instId": inst_id, "period": "1H", "limit": "100"}
         if after:
             params["after"] = after
         try:
@@ -132,7 +134,7 @@ def fetch_coinglass():
     result = {"oi_data": []}
     try:
         data = coinglass_get("/api/futures/openInterest/ohlc-history",
-                            {"symbol": "BTC", "interval": "30m", "limit": "500"})
+                            {"symbol": "BTC", "interval": "1h", "limit": "500"})
         oi = data.get("data", [])
         if isinstance(oi, list):
             result["oi_data"] = oi
@@ -149,13 +151,13 @@ def build_bundles(candles, oi_history, funding, cg_data):
 
     oi_map = {}
     for r in oi_history:
-        bucket = r["ts"] // (30*60*1000) * (30*60*1000)
+        bucket = r["ts"] // (3600*1000) * (3600*1000)  # 1H buckets
         oi_map[bucket] = r.get("oiCcy", 0)
     for r in cg_data.get("oi_data", []):
         if isinstance(r, dict):
             ts = int(r.get("t", r.get("ts", 0)))
             if ts > 0:
-                bucket = ts // (30*60*1000) * (30*60*1000)
+                bucket = ts // (3600*1000) * (3600*1000)
                 val = float(r.get("o", r.get("oi", 0)))
                 if val > 0:
                     oi_map[bucket] = val
@@ -178,7 +180,7 @@ def build_bundles(candles, oi_history, funding, cg_data):
         vh = [candles[j][6] if len(candles[j])>6 else candles[j][5] for j in range(start, i+1)]
         oih = []
         for j in range(start, i+1):
-            b = candles[j][0]//(30*60*1000)*(30*60*1000)
+            b = candles[j][0]//(3600*1000)*(3600*1000)
             v = oi_map.get(b, 0)
             if v > 0: oih.append(v)
         if not oih: oih = [0.0]
@@ -203,55 +205,71 @@ def run_test(bundles):
 
     analytics = FeatureEngine()
 
-    # SuperStrategy with two margin levels
     configs = [
+        # SuperStrategy score>=4 (strict), 7% margin
         {
-            "name": "SuperStrategy 7%",
-            "strategy": SuperStrategy(symbol=CCXT_SYMBOL, cooldown_bars=8),
+            "name": "Super s>=4 m=7%",
+            "strategy": SuperStrategy(symbol=CCXT_SYMBOL, cooldown_bars=12, min_score=4),
             "leverage": 25, "margin": 0.07, "atr_mult": 1.5,
             "tp_levels": [
-                TPLevel(pnl_pct=0.10, close_pct=0.30, move_sl_to_entry=True),   # TP1: +10% margin -> 30%, BE
-                TPLevel(pnl_pct=0.50, close_pct=0.35, move_sl_to_entry=False),  # TP2: +50% margin -> 35%
-                TPLevel(pnl_pct=1.50, close_pct=1.0,  move_sl_to_entry=False),  # TP3: +150% margin -> rest
+                TPLevel(0.10, 0.30, True),   # TP1: +10% -> 30%, BE
+                TPLevel(0.50, 0.35, False),  # TP2: +50% -> 35%
+                TPLevel(1.50, 1.0, False),   # TP3: +150% -> rest
             ],
             "trailing": 1.2,
         },
+        # SuperStrategy score>=4 (strict), 10% margin
         {
-            "name": "SuperStrategy 10%",
-            "strategy": SuperStrategy(symbol=CCXT_SYMBOL, cooldown_bars=8),
+            "name": "Super s>=4 m=10%",
+            "strategy": SuperStrategy(symbol=CCXT_SYMBOL, cooldown_bars=12, min_score=4),
             "leverage": 25, "margin": 0.10, "atr_mult": 1.5,
             "tp_levels": [
-                TPLevel(pnl_pct=0.10, close_pct=0.30, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.50, close_pct=0.35, move_sl_to_entry=False),
-                TPLevel(pnl_pct=1.50, close_pct=1.0,  move_sl_to_entry=False),
+                TPLevel(0.10, 0.30, True),
+                TPLevel(0.50, 0.35, False),
+                TPLevel(1.50, 1.0, False),
             ],
             "trailing": 1.2,
         },
+        # SuperStrategy score>=3 (relaxed), 7% margin
         {
-            "name": "Breakout (baseline)",
+            "name": "Super s>=3 m=7%",
+            "strategy": SuperStrategy(symbol=CCXT_SYMBOL, cooldown_bars=12, min_score=3),
+            "leverage": 25, "margin": 0.07, "atr_mult": 1.5,
+            "tp_levels": [
+                TPLevel(0.10, 0.30, True),
+                TPLevel(0.50, 0.35, False),
+                TPLevel(1.50, 1.0, False),
+            ],
+            "trailing": 1.2,
+        },
+        # Breakout baseline
+        {
+            "name": "Breakout baseline",
             "strategy": BreakoutStrategy(symbol=CCXT_SYMBOL),
             "leverage": 25, "margin": 0.07, "atr_mult": 1.0,
             "tp_levels": [
-                TPLevel(pnl_pct=0.08, close_pct=0.40, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.25, close_pct=0.35, move_sl_to_entry=False),
-                TPLevel(pnl_pct=0.60, close_pct=1.0,  move_sl_to_entry=False),
+                TPLevel(0.08, 0.40, True),
+                TPLevel(0.25, 0.35, False),
+                TPLevel(0.60, 1.0, False),
             ],
             "trailing": 0.0,
         },
     ]
 
-    print(f"\n{'='*90}")
+    days = len(bundles) / 24
+    print(f"\nBacktest: {len(bundles)} candles (1H) = {days:.0f} days")
+    print(f"{'='*95}")
     print(f"{'Strategy':<22} {'Lev':>4} {'Marg':>5} {'SL':>5} {'TP1':>12} {'TP2':>12} {'TP3':>12} {'Trail':>6}")
-    print(f"{'-'*90}")
+    print(f"{'-'*95}")
     for cfg in configs:
         tps = cfg['tp_levels']
         t = [f"+{tp.pnl_pct:.0%}({tp.close_pct:.0%})" for tp in tps]
         print(f"{cfg['name']:<22} {cfg['leverage']:>3}x {cfg['margin']:>4.0%}  {cfg['atr_mult']:>4.1f}a  {t[0]:>12} {t[1]:>12} {t[2]:>12} {cfg['trailing']:>5.1f}a")
-    print(f"{'='*90}")
+    print(f"{'='*95}")
 
-    print(f"\n{'='*90}")
+    print(f"\n{'='*95}")
     print(f"{'Strategy':<22} {'Trades':>6} {'WR':>6} {'PF':>7} {'Return':>8} {'MDD':>7} {'Sharpe':>7} {'Expect':>8} {'Equity':>10}")
-    print(f"{'-'*90}")
+    print(f"{'-'*95}")
 
     for cfg in configs:
         settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=cfg["margin"])
@@ -266,20 +284,13 @@ def run_test(bundles):
               f" {r.total_return_pct:>+7.2f}% {r.max_drawdown_pct:>6.2f}% {r.sharpe_ratio:>7.2f}"
               f" {r.expectancy:>+8.2f} ${r.final_equity:>9.2f}")
 
-    print(f"{'='*90}")
-    print(f"Data: {len(bundles)} candles (30min) | Real OI + Coinglass")
-    print(f"\nSuperStrategy filters:")
-    print(f"  Gate 1: Cooldown 8 bars (4h between trades)")
-    print(f"  Gate 2: Only TREND_UP or TREND_DOWN regime")
-    print(f"  Gate 3: Volatility < 5%")
-    print(f"  Gate 4: Volume > 1.3x average")
-    print(f"  Gate 5: Score >= 3/5 factors (trend + OI + funding + BB + liq)")
-    print(f"  + Spread filter < 0.05%")
+    print(f"{'='*95}")
+    print(f"\nTimeframe: 1H | Data: {len(bundles)} candles ({days:.0f} days) | Real OI + Coinglass")
 
 
 def main():
     os.makedirs("data", exist_ok=True)
-    candles = download_candles(SYMBOL, "30m", limit=1500)
+    candles = download_candles(SYMBOL, TIMEFRAME, CANDLE_LIMIT)
     oi = download_oi(SYMBOL)
     funding = download_funding(SYMBOL)
     cg = fetch_coinglass()
