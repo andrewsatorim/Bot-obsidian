@@ -1,14 +1,5 @@
 """Test ALL 7 strategies with individual optimal settings.
 
-Strategies:
-  1. OI Divergence (counter-trend)
-  2. TrendFollowing (with-trend)
-  3. Breakout (impulse)
-  4. BollingerReversion (mean-reversion)
-  5. FundingMeanReversion (funding extremes)
-  6. LiquidationSqueeze (cascade)
-  7. Fusion (all 6 combined)
-
 Usage:
     python scripts/test_all_strategies.py
 """
@@ -30,16 +21,14 @@ COINGLASS_KEY = "7abff9b1c52e41ddaff0d72ff2a8da09"
 
 
 def okx_get(path, params=None):
-    url = f"{BASE_URL}{path}"
-    resp = requests.get(url, params=params, timeout=15)
+    resp = requests.get(f"{BASE_URL}{path}", params=params, timeout=15)
     resp.raise_for_status()
     return resp.json()
 
 
 def coinglass_get(path, params=None):
-    url = f"https://open-api-v3.coinglass.com{path}"
     headers = {"accept": "application/json", "CG-API-KEY": COINGLASS_KEY}
-    resp = requests.get(url, headers=headers, params=params, timeout=15)
+    resp = requests.get(f"https://open-api-v3.coinglass.com{path}", headers=headers, params=params, timeout=15)
     resp.raise_for_status()
     return resp.json()
 
@@ -76,16 +65,30 @@ def download_oi(inst_id):
         params = {"instId": inst_id, "period": "30m", "limit": "100"}
         if after:
             params["after"] = after
-        data = okx_get("/api/v5/rubik/stat/contracts/open-interest-history", params)
+        try:
+            data = okx_get("/api/v5/rubik/stat/contracts/open-interest-history", params)
+        except Exception:
+            break
         records = data.get("data", [])
         if not records:
-            data = okx_get("/api/v5/public/open-interest", {"instId": inst_id})
-            for r in data.get("data", []):
-                all_oi.append({"ts": int(r.get("ts", 0)), "oiCcy": float(r.get("oiCcy", 0))})
+            # Fallback: current OI snapshot
+            try:
+                data2 = okx_get("/api/v5/public/open-interest", {"instId": inst_id})
+                for r in data2.get("data", []):
+                    if isinstance(r, dict):
+                        all_oi.append({"ts": int(r.get("ts", 0)), "oiCcy": float(r.get("oiCcy", 0))})
+            except Exception:
+                pass
             break
         for r in records:
-            all_oi.append({"ts": int(r.get("ts", 0)), "oiCcy": float(r.get("oiCcy", 0))})
-        after = records[-1].get("ts", "")
+            if isinstance(r, dict):
+                all_oi.append({"ts": int(r.get("ts", 0)), "oiCcy": float(r.get("oiCcy", 0))})
+            elif isinstance(r, (list, tuple)) and len(r) >= 3:
+                # OKX sometimes returns [ts, oi, oiCcy]
+                all_oi.append({"ts": int(r[0]), "oiCcy": float(r[2]) if len(r) > 2 else float(r[1])})
+        if not all_oi:
+            break
+        after = str(all_oi[-1]["ts"])
         print(f"{len(all_oi)}", end="..", flush=True)
         time.sleep(0.2)
     all_oi.sort(key=lambda x: x["ts"])
@@ -101,13 +104,21 @@ def download_funding(inst_id):
         params = {"instId": inst_id, "limit": "100"}
         if after:
             params["after"] = after
-        data = okx_get("/api/v5/public/funding-rate-history", params)
+        try:
+            data = okx_get("/api/v5/public/funding-rate-history", params)
+        except Exception:
+            break
         records = data.get("data", [])
         if not records:
             break
         for r in records:
-            all_r.append({"ts": int(r.get("fundingTime", 0)), "rate": float(r.get("fundingRate", 0))})
-        after = records[-1].get("fundingTime", "")
+            if isinstance(r, dict):
+                all_r.append({"ts": int(r.get("fundingTime", 0)), "rate": float(r.get("fundingRate", 0))})
+        if not all_r:
+            break
+        after = records[-1].get("fundingTime", "") if isinstance(records[-1], dict) else ""
+        if not after:
+            break
         print(f"{len(all_r)}", end="..", flush=True)
         time.sleep(0.2)
     all_r.sort(key=lambda x: x["ts"])
@@ -119,7 +130,8 @@ def fetch_coinglass():
     print("Fetching Coinglass...", end=" ", flush=True)
     result = {"oi_data": []}
     try:
-        data = coinglass_get("/api/futures/openInterest/ohlc-history", {"symbol": "BTC", "interval": "30m", "limit": "500"})
+        data = coinglass_get("/api/futures/openInterest/ohlc-history",
+                            {"symbol": "BTC", "interval": "30m", "limit": "500"})
         oi = data.get("data", [])
         if isinstance(oi, list):
             result["oi_data"] = oi
@@ -139,12 +151,13 @@ def build_bundles(candles, oi_history, funding, cg_data):
         bucket = r["ts"] // (30*60*1000) * (30*60*1000)
         oi_map[bucket] = r.get("oiCcy", 0)
     for r in cg_data.get("oi_data", []):
-        ts = int(r.get("t", r.get("ts", 0)))
-        if ts > 0:
-            bucket = ts // (30*60*1000) * (30*60*1000)
-            val = float(r.get("o", r.get("oi", 0)))
-            if val > 0:
-                oi_map[bucket] = val
+        if isinstance(r, dict):
+            ts = int(r.get("t", r.get("ts", 0)))
+            if ts > 0:
+                bucket = ts // (30*60*1000) * (30*60*1000)
+                val = float(r.get("o", r.get("oi", 0)))
+                if val > 0:
+                    oi_map[bucket] = val
 
     funding_map = {}
     for r in funding:
@@ -194,122 +207,53 @@ def run_all(bundles):
 
     analytics = FeatureEngine()
 
-    # ================================================================
-    # ALL 7 STRATEGIES with individual optimal settings
-    # ================================================================
     configs = [
-        # 1. OI Divergence — counter-trend, rare, high quality
-        {
-            "name": "1. OI Divergence",
-            "strategy": OIDivergenceStrategy(
-                symbol=CCXT_SYMBOL, inverse=False,
-                require_volume_spike=False, require_oi_delta_neg=True,
-                oi_threshold=-0.02, min_strength=0.4,
-            ),
-            "leverage": 30, "margin": 0.05, "atr_mult": 1.5,
-            "tp_levels": [
-                TPLevel(pnl_pct=0.1618, close_pct=0.0618, move_sl_to_entry=True),
-                TPLevel(pnl_pct=1.00,   close_pct=0.1618, move_sl_to_entry=False),
-                TPLevel(pnl_pct=2.618,  close_pct=0.50,   move_sl_to_entry=False),
-            ],
-            "trailing": 1.618,
-        },
-        # 2. TrendFollowing — with-trend, moderate frequency
-        {
-            "name": "2. TrendFollowing",
-            "strategy": TrendFollowingStrategy(symbol=CCXT_SYMBOL, max_volatility=0.05),
-            "leverage": 20, "margin": 0.07, "atr_mult": 2.0,
-            "tp_levels": [
-                TPLevel(pnl_pct=0.10, close_pct=0.25, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.40, close_pct=0.35, move_sl_to_entry=False),
-                TPLevel(pnl_pct=1.00, close_pct=1.0,  move_sl_to_entry=False),
-            ],
-            "trailing": 1.0,
-        },
-        # 3. Breakout — impulse, fast resolution
-        {
-            "name": "3. Breakout",
-            "strategy": BreakoutStrategy(symbol=CCXT_SYMBOL),
-            "leverage": 25, "margin": 0.05, "atr_mult": 1.0,
-            "tp_levels": [
-                TPLevel(pnl_pct=0.08, close_pct=0.40, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.25, close_pct=0.35, move_sl_to_entry=False),
-                TPLevel(pnl_pct=0.60, close_pct=1.0,  move_sl_to_entry=False),
-            ],
-            "trailing": 0.0,
-        },
-        # 4. BollingerReversion — mean-reversion at band touches
-        {
-            "name": "4. Bollinger",
-            "strategy": BollingerMeanReversionStrategy(symbol=CCXT_SYMBOL, period=20),
-            "leverage": 20, "margin": 0.05, "atr_mult": 1.5,
-            "tp_levels": [
-                TPLevel(pnl_pct=0.10, close_pct=0.30, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.30, close_pct=0.40, move_sl_to_entry=False),
-                TPLevel(pnl_pct=0.80, close_pct=1.0,  move_sl_to_entry=False),
-            ],
-            "trailing": 0.0,  # Mean-reversion: fixed targets, no trailing
-        },
-        # 5. FundingMeanReversion — funding rate extremes
-        {
-            "name": "5. FundingMR",
-            "strategy": FundingMeanReversionStrategy(symbol=CCXT_SYMBOL),
-            "leverage": 25, "margin": 0.05, "atr_mult": 1.5,
-            "tp_levels": [
-                TPLevel(pnl_pct=0.12, close_pct=0.20, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.50, close_pct=0.40, move_sl_to_entry=False),
-                TPLevel(pnl_pct=1.50, close_pct=1.0,  move_sl_to_entry=False),
-            ],
-            "trailing": 1.2,
-        },
-        # 6. LiquidationSqueeze — cascade detection
-        {
-            "name": "6. LiqSqueeze",
-            "strategy": LiquidationSqueezeStrategy(symbol=CCXT_SYMBOL),
-            "leverage": 30, "margin": 0.05, "atr_mult": 1.0,
-            "tp_levels": [
-                TPLevel(pnl_pct=0.15, close_pct=0.30, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.80, close_pct=0.40, move_sl_to_entry=False),
-                TPLevel(pnl_pct=2.00, close_pct=1.0,  move_sl_to_entry=False),
-            ],
-            "trailing": 1.0,
-        },
-        # 7. Fusion — all 6 combined with weights
-        {
-            "name": "7. Fusion(all6)",
-            "strategy": StrategyFusion(
-                strategies=[
-                    (OIDivergenceStrategy(symbol=CCXT_SYMBOL, require_volume_spike=False, require_oi_delta_neg=False, oi_threshold=-0.01, min_strength=0.3), 1.2),
-                    (BollingerMeanReversionStrategy(symbol=CCXT_SYMBOL), 1.1),
-                    (LiquidationSqueezeStrategy(symbol=CCXT_SYMBOL), 1.0),
-                    (FundingMeanReversionStrategy(symbol=CCXT_SYMBOL), 0.9),
-                    (TrendFollowingStrategy(symbol=CCXT_SYMBOL), 0.8),
-                    (BreakoutStrategy(symbol=CCXT_SYMBOL), 0.7),
-                ],
-                min_agreement=1, min_strength=0.3,
-            ),
-            "leverage": 20, "margin": 0.05, "atr_mult": 1.5,
-            "tp_levels": [
-                TPLevel(pnl_pct=0.12, close_pct=0.20, move_sl_to_entry=True),
-                TPLevel(pnl_pct=0.50, close_pct=0.30, move_sl_to_entry=False),
-                TPLevel(pnl_pct=1.20, close_pct=1.0,  move_sl_to_entry=False),
-            ],
-            "trailing": 1.2,
-        },
+        {"name": "1.OI Divergence", "strategy": OIDivergenceStrategy(symbol=CCXT_SYMBOL, inverse=False, require_volume_spike=False, require_oi_delta_neg=True, oi_threshold=-0.02, min_strength=0.4),
+         "leverage": 30, "margin": 0.05, "atr_mult": 1.5,
+         "tp_levels": [TPLevel(0.1618, 0.0618, True), TPLevel(1.00, 0.1618, False), TPLevel(2.618, 0.50, False)], "trailing": 1.618},
+
+        {"name": "2.TrendFollow", "strategy": TrendFollowingStrategy(symbol=CCXT_SYMBOL, max_volatility=0.05),
+         "leverage": 20, "margin": 0.07, "atr_mult": 2.0,
+         "tp_levels": [TPLevel(0.10, 0.25, True), TPLevel(0.40, 0.35, False), TPLevel(1.00, 1.0, False)], "trailing": 1.0},
+
+        {"name": "3.Breakout", "strategy": BreakoutStrategy(symbol=CCXT_SYMBOL),
+         "leverage": 25, "margin": 0.05, "atr_mult": 1.0,
+         "tp_levels": [TPLevel(0.08, 0.40, True), TPLevel(0.25, 0.35, False), TPLevel(0.60, 1.0, False)], "trailing": 0.0},
+
+        {"name": "4.Bollinger", "strategy": BollingerMeanReversionStrategy(symbol=CCXT_SYMBOL, period=20),
+         "leverage": 20, "margin": 0.05, "atr_mult": 1.5,
+         "tp_levels": [TPLevel(0.10, 0.30, True), TPLevel(0.30, 0.40, False), TPLevel(0.80, 1.0, False)], "trailing": 0.0},
+
+        {"name": "5.FundingMR", "strategy": FundingMeanReversionStrategy(symbol=CCXT_SYMBOL),
+         "leverage": 25, "margin": 0.05, "atr_mult": 1.5,
+         "tp_levels": [TPLevel(0.12, 0.20, True), TPLevel(0.50, 0.40, False), TPLevel(1.50, 1.0, False)], "trailing": 1.2},
+
+        {"name": "6.LiqSqueeze", "strategy": LiquidationSqueezeStrategy(symbol=CCXT_SYMBOL),
+         "leverage": 30, "margin": 0.05, "atr_mult": 1.0,
+         "tp_levels": [TPLevel(0.15, 0.30, True), TPLevel(0.80, 0.40, False), TPLevel(2.00, 1.0, False)], "trailing": 1.0},
+
+        {"name": "7.Fusion(6)", "strategy": StrategyFusion(
+            strategies=[
+                (OIDivergenceStrategy(symbol=CCXT_SYMBOL, require_volume_spike=False, require_oi_delta_neg=False, oi_threshold=-0.01, min_strength=0.3), 1.2),
+                (BollingerMeanReversionStrategy(symbol=CCXT_SYMBOL), 1.1),
+                (LiquidationSqueezeStrategy(symbol=CCXT_SYMBOL), 1.0),
+                (FundingMeanReversionStrategy(symbol=CCXT_SYMBOL), 0.9),
+                (TrendFollowingStrategy(symbol=CCXT_SYMBOL), 0.8),
+                (BreakoutStrategy(symbol=CCXT_SYMBOL), 0.7),
+            ], min_agreement=1, min_strength=0.3),
+         "leverage": 20, "margin": 0.05, "atr_mult": 1.5,
+         "tp_levels": [TPLevel(0.12, 0.20, True), TPLevel(0.50, 0.30, False), TPLevel(1.20, 1.0, False)], "trailing": 1.2},
     ]
 
-    # Print config table
     print(f"\n{'='*100}")
-    print(f"{'#':<18} {'Lev':>4} {'Marg':>5} {'SL':>5} {'TP1':>14} {'TP2':>14} {'TP3':>14} {'Trail':>6}")
+    print(f"{'Strategy':<18} {'Lev':>4} {'Marg':>5} {'SL':>5} {'TP1':>14} {'TP2':>14} {'TP3':>14} {'Trail':>6}")
     print(f"{'-'*100}")
     for cfg in configs:
         tps = cfg['tp_levels']
-        tp_strs = [f"+{tp.pnl_pct:.0%}({tp.close_pct:.0%})" for tp in tps]
-        print(f"{cfg['name']:<18} {cfg['leverage']:>3}x {cfg['margin']:>4.0%}  {cfg['atr_mult']:>4.1f}a"
-              f"  {tp_strs[0]:>14} {tp_strs[1]:>14} {tp_strs[2]:>14} {cfg['trailing']:>5.1f}a")
+        t = [f"+{tp.pnl_pct:.0%}({tp.close_pct:.0%})" for tp in tps]
+        print(f"{cfg['name']:<18} {cfg['leverage']:>3}x {cfg['margin']:>4.0%}  {cfg['atr_mult']:>4.1f}a  {t[0]:>14} {t[1]:>14} {t[2]:>14} {cfg['trailing']:>5.1f}a")
     print(f"{'='*100}")
 
-    # Run each
     print(f"\n{'='*100}")
     print(f"{'Strategy':<18} {'Trades':>6} {'WR':>6} {'PF':>7} {'Return':>8} {'MDD':>7} {'Sharpe':>7} {'Expect':>8} {'Equity':>10}")
     print(f"{'-'*100}")
@@ -317,15 +261,9 @@ def run_all(bundles):
     for cfg in configs:
         settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=cfg["margin"])
         engine = BacktestEngine(
-            analytics=analytics,
-            strategy=cfg["strategy"],
-            risk=RiskManager(settings),
-            initial_equity=10_000.0,
-            leverage=cfg["leverage"],
-            max_position_pct=cfg["margin"],
-            atr_risk_multiplier=cfg["atr_mult"],
-            tp_levels=cfg["tp_levels"],
-            trailing_stop_atr=cfg["trailing"],
+            analytics=analytics, strategy=cfg["strategy"], risk=RiskManager(settings),
+            initial_equity=10_000.0, leverage=cfg["leverage"], max_position_pct=cfg["margin"],
+            atr_risk_multiplier=cfg["atr_mult"], tp_levels=cfg["tp_levels"], trailing_stop_atr=cfg["trailing"],
         )
         r = engine.run(bundles)
         pf = f"{r.profit_factor:.2f}" if r.profit_factor < 100 else "inf"
@@ -334,7 +272,7 @@ def run_all(bundles):
               f" {r.expectancy:>+8.2f} ${r.final_equity:>9.2f}")
 
     print(f"{'='*100}")
-    print(f"\nData: {len(bundles)} candles (30min) | Real OI + Coinglass")
+    print(f"Data: {len(bundles)} candles (30min) | Real OI + Coinglass")
 
 
 def main():
