@@ -119,17 +119,24 @@ def run_backtest(candles):
 
         # --- CHECK TP LEVELS on open position ---
         if position is not None:
+            # Use high/low for intra-candle TP detection
             if position.direction == "LONG":
-                pnl = (close - position.entry_price) * position.quantity
+                pnl_best = (h - position.entry_price) * position.quantity  # Best PnL this candle
+                pnl_close = (close - position.entry_price) * position.quantity
+                pnl_worst = (l - position.entry_price) * position.quantity
             else:
-                pnl = (position.entry_price - close) * position.quantity
+                pnl_best = (position.entry_price - l) * position.quantity
+                pnl_close = (position.entry_price - close) * position.quantity
+                pnl_worst = (position.entry_price - h) * position.quantity
 
             margin = position.entry_price * position.initial_quantity / LEVERAGE
-            pnl_pct = pnl / margin if margin > 0 else 0
+            pnl_pct_best = pnl_best / margin if margin > 0 else 0
+            pnl_pct_close = pnl_close / margin if margin > 0 else 0
+            pnl_pct_worst = pnl_worst / margin if margin > 0 else 0
 
-            # --- STOP LOSS: -100% on margin ---
-            if pnl_pct <= -1.0:
-                total_pnl = pnl + position.realized_pnl
+            # --- STOP LOSS: -100% on margin (check worst case = low for LONG, high for SHORT) ---
+            if pnl_pct_worst <= -1.0:
+                total_pnl = pnl_worst + position.realized_pnl
                 fee = close * position.quantity * FEE_RATE
                 equity += total_pnl - fee
                 trades.append(Trade(position.direction, position.entry_price, close, total_pnl - fee, sum(position.tp_hit), "SL(-100%)", 0, idx))
@@ -137,13 +144,13 @@ def run_backtest(candles):
                 equity_curve.append(equity)
                 continue
 
-            # Check TPs (highest first)
+            # Check TPs using BEST pnl this candle (high for LONG, low for SHORT)
             for i in range(len(TP_LEVELS) - 1, -1, -1):
                 tp_pct, close_pct = TP_LEVELS[i]
                 if position.tp_hit[i]:
                     continue
 
-                if pnl_pct >= tp_pct:
+                if pnl_pct_best >= tp_pct:
                     position.tp_hit[i] = True
                     if close_pct >= 0.99:
                         # Full close
