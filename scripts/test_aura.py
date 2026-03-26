@@ -29,11 +29,11 @@ from app.strategy.aura_v14 import AuraV14
 
 SYMBOL = "BTC-USDT-SWAP"
 BASE_URL = "https://www.okx.com"
+COINGLASS_KEY = "7abff9b1c52e41ddaff0d72ff2a8da09"
 LEVERAGE = 40
 MARGIN_PCT = 0.15
 FEE_RATE = 0.001
 
-# TP levels: (pnl_pct_on_margin, close_pct_of_initial)
 TP_LEVELS = [
     (0.15, 0.10),   # TP1: +15% margin -> close 10%
     (0.50, 0.60),   # TP2: +50% margin -> close 60%
@@ -80,6 +80,98 @@ def download_candles(inst_id, bar="30m", limit=1500):
     return unique
 
 
+def coinglass_get(path, params=None):
+    headers = {"accept": "application/json", "CG-API-KEY": COINGLASS_KEY}
+    resp = requests.get(f"https://open-api-v3.coinglass.com{path}", headers=headers, params=params, timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def fetch_coinglass_oi():
+    """Fetch aggregated OI from Coinglass for additional filter."""
+    print("Fetching Coinglass OI + liquidation...", end=" ", flush=True)
+    result = {"oi_data": [], "ls_ratio": []}
+    try:
+        data = coinglass_get("/api/futures/openInterest/ohlc-history",
+                            {"symbol": "BTC", "interval": "30m", "limit": "500"})
+        oi = data.get("data", [])
+        if isinstance(oi, list):
+            result["oi_data"] = oi
+            print(f"oi({len(oi)})", end="..", flush=True)
+    except Exception as e:
+        print(f"oi_err:{e}", end="..", flush=True)
+
+    try:
+        data = coinglass_get("/api/futures/globalLongShortAccountRatio/chart",
+                            {"symbol": "BTC", "interval": "30m", "limit": "500"})
+        ls = data.get("data", [])
+        if isinstance(ls, list):
+            result["ls_ratio"] = ls
+            print(f"ls({len(ls)})", end="..", flush=True)
+    except Exception as e:
+        print(f"ls_err:{e}", end="..", flush=True)
+
+    try:
+        data = coinglass_get("/api/futures/liquidation/v2/info", {"symbol": "BTC"})
+        result["liq_info"] = data.get("data", {})
+        print("liq", end="..", flush=True)
+    except Exception as e:
+        print(f"liq_err:{e}", end="..", flush=True)
+
+    print(" done")
+    return result
+
+
+def build_oi_filter(cg_data, candles):
+    """Build OI and long/short ratio lookup for signal filtering.
+
+    Returns dict: candle_index -> {oi_change_pct, ls_ratio}
+    """
+    oi_map = {}
+    for r in cg_data.get("oi_data", []):
+        if isinstance(r, dict):
+            ts = int(r.get("t", r.get("ts", 0)))
+            val = float(r.get("o", r.get("oi", 0)))
+            if ts > 0 and val > 0:
+                bucket = ts // (30*60*1000) * (30*60*1000)
+                oi_map[bucket] = val
+
+    ls_map = {}
+    for r in cg_data.get("ls_ratio", []):
+        if isinstance(r, dict):
+            ts = int(r.get("t", r.get("ts", 0)))
+            ratio = float(r.get("longRate", r.get("value", 0.5)))
+            if ts > 0:
+                bucket = ts // (30*60*1000) * (30*60*1000)
+                ls_map[bucket] = ratio
+
+    # Build per-candle filter data
+    filters = {}
+    prev_oi = 0
+    for idx, c in enumerate(candles):
+        ts = c[0]
+        bucket = ts // (30*60*1000) * (30*60*1000)
+        oi = oi_map.get(bucket, 0)
+        ls = ls_map.get(bucket, 0.5)
+
+        oi_change = 0.0
+        if prev_oi > 0 and oi > 0:
+            oi_change = (oi - prev_oi) / prev_oi
+        if oi > 0:
+            prev_oi = oi
+
+        filters[idx] = {
+            "oi": oi,
+            "oi_change": oi_change,
+            "ls_ratio": ls,
+            "has_data": oi > 0,
+        }
+
+    coverage = sum(1 for f in filters.values() if f["has_data"])
+    print(f"OI filter coverage: {coverage}/{len(candles)} ({coverage/max(len(candles),1)*100:.0f}%)")
+    return filters
+
+
 @dataclass
 class Position:
     direction: str  # "LONG" or "SHORT"
@@ -103,7 +195,7 @@ class Trade:
     exit_idx: int
 
 
-def run_backtest(candles):
+def run_backtest(candles, oi_filters=None):
     aura = AuraV14()
     equity = 10_000.0
     equity_curve = [equity]
@@ -134,12 +226,12 @@ def run_backtest(candles):
             pnl_pct_close = pnl_close / margin if margin > 0 else 0
             pnl_pct_worst = pnl_worst / margin if margin > 0 else 0
 
-            # --- STOP LOSS: -100% on margin (check worst case = low for LONG, high for SHORT) ---
-            if pnl_pct_worst <= -1.0:
+            # --- STOP LOSS: -50% on margin ---
+            if pnl_pct_worst <= -0.50:
                 total_pnl = pnl_worst + position.realized_pnl
                 fee = close * position.quantity * FEE_RATE
                 equity += total_pnl - fee
-                trades.append(Trade(position.direction, position.entry_price, close, total_pnl - fee, sum(position.tp_hit), "SL(-100%)", 0, idx))
+                trades.append(Trade(position.direction, position.entry_price, close, total_pnl - fee, sum(position.tp_hit), "SL(-50%)", 0, idx))
                 position = None
                 equity_curve.append(equity)
                 continue
@@ -179,6 +271,25 @@ def run_backtest(candles):
         if signal is not None:
             signals_count += 1
             new_dir = "LONG" if signal == "BUY" else "SHORT"
+
+            # Coinglass OI filter: skip if OI data says weak signal
+            skip_signal = False
+            if oi_filters and idx in oi_filters:
+                f = oi_filters[idx]
+                if f["has_data"]:
+                    # Filter: don't LONG if long/short ratio > 0.65 (too many longs = crowded)
+                    if new_dir == "LONG" and f["ls_ratio"] > 0.65:
+                        skip_signal = True
+                    # Filter: don't SHORT if long/short ratio < 0.35 (too many shorts)
+                    if new_dir == "SHORT" and f["ls_ratio"] < 0.35:
+                        skip_signal = True
+                    # Filter: don't enter if OI dropping > 3% (unstable market)
+                    if f["oi_change"] < -0.03:
+                        skip_signal = True
+
+            if skip_signal:
+                equity_curve.append(equity)
+                continue
 
             # Close existing position if opposite direction
             if position is not None and position.direction != new_dir:
@@ -313,13 +424,25 @@ def main():
         print("ERROR: Not enough data")
         return
 
-    days = len(candles) * 30 / 60 / 24
-    print(f"Data: {len(candles)} candles = {days:.0f} days")
-    print(f"Config: {LEVERAGE}x leverage, {MARGIN_PCT*100:.0f}% margin")
-    print(f"TPs: +15%(10%) -> +50%(60%) -> +300%(rest) | Flip on reverse")
+    # Fetch Coinglass data
+    cg_data = fetch_coinglass_oi()
+    oi_filters = build_oi_filter(cg_data, candles)
 
-    trades, curve, sigs = run_backtest(candles)
-    print_results(trades, curve, sigs, len(candles))
+    days = len(candles) * 30 / 60 / 24
+    print(f"\nData: {len(candles)} candles = {days:.0f} days")
+    print(f"Config: {LEVERAGE}x leverage, {MARGIN_PCT*100:.0f}% margin, SL -50%")
+    print(f"TPs: +15%(10%) -> +50%(60%) -> +300%(rest) | Flip on reverse")
+    print(f"Filters: Coinglass OI + L/S ratio + liquidation")
+
+    # Test WITHOUT Coinglass filter
+    print(f"\n--- Without Coinglass filter ---")
+    trades1, curve1, sigs1 = run_backtest(candles, oi_filters=None)
+    print_results(trades1, curve1, sigs1, len(candles))
+
+    # Test WITH Coinglass filter
+    print(f"\n--- With Coinglass filter ---")
+    trades2, curve2, sigs2 = run_backtest(candles, oi_filters=oi_filters)
+    print_results(trades2, curve2, sigs2, len(candles))
 
 
 if __name__ == "__main__":
