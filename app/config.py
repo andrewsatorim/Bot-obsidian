@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     exchange_passphrase: str = ""  # Required for OKX
     paper_trading: bool = True
 
+    # On-chain / Data APIs
+    coinglass_api_key: str = ""
+
     # Telegram
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
