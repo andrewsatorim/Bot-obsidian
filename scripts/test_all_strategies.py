@@ -1,7 +1,13 @@
-"""Test all 4 strategies with individual optimal settings.
+"""Test ALL 7 strategies with individual optimal settings.
 
-Strategies: OI Divergence, TrendFollowing, Breakout, Fusion
-Each has tailored leverage, margin, TP structure based on its character.
+Strategies:
+  1. OI Divergence (counter-trend)
+  2. TrendFollowing (with-trend)
+  3. Breakout (impulse)
+  4. BollingerReversion (mean-reversion)
+  5. FundingMeanReversion (funding extremes)
+  6. LiquidationSqueeze (cascade)
+  7. Fusion (all 6 combined)
 
 Usage:
     python scripts/test_all_strategies.py
@@ -181,93 +187,132 @@ def run_all(bundles):
     from app.strategy.oi_divergence import OIDivergenceStrategy
     from app.strategy.trend_following import TrendFollowingStrategy
     from app.strategy.breakout import BreakoutStrategy
+    from app.strategy.bollinger_reversion import BollingerMeanReversionStrategy
+    from app.strategy.funding_mean_reversion import FundingMeanReversionStrategy
+    from app.strategy.liquidation_squeeze import LiquidationSqueezeStrategy
     from app.strategy.fusion import StrategyFusion
 
     analytics = FeatureEngine()
 
     # ================================================================
-    # 4 strategies with individual optimal settings
+    # ALL 7 STRATEGIES with individual optimal settings
     # ================================================================
     configs = [
+        # 1. OI Divergence — counter-trend, rare, high quality
         {
-            "name": "OI Divergence",
+            "name": "1. OI Divergence",
             "strategy": OIDivergenceStrategy(
                 symbol=CCXT_SYMBOL, inverse=False,
                 require_volume_spike=False, require_oi_delta_neg=True,
                 oi_threshold=-0.02, min_strength=0.4,
             ),
-            "leverage": 30,
-            "margin": 0.05,
-            "atr_mult": 1.5,
+            "leverage": 30, "margin": 0.05, "atr_mult": 1.5,
             "tp_levels": [
-                TPLevel(pnl_pct=0.1618, close_pct=0.0618, move_sl_to_entry=True),   # TP1: +16.18% -> 6.18%
-                TPLevel(pnl_pct=1.00,   close_pct=0.1618, move_sl_to_entry=False),  # TP2: +100% -> 16.18%
-                TPLevel(pnl_pct=2.618,  close_pct=0.50,   move_sl_to_entry=False),  # TP3: +261.8% -> 50%
+                TPLevel(pnl_pct=0.1618, close_pct=0.0618, move_sl_to_entry=True),
+                TPLevel(pnl_pct=1.00,   close_pct=0.1618, move_sl_to_entry=False),
+                TPLevel(pnl_pct=2.618,  close_pct=0.50,   move_sl_to_entry=False),
             ],
             "trailing": 1.618,
         },
+        # 2. TrendFollowing — with-trend, moderate frequency
         {
-            "name": "TrendFollowing",
+            "name": "2. TrendFollowing",
             "strategy": TrendFollowingStrategy(symbol=CCXT_SYMBOL, max_volatility=0.05),
-            "leverage": 20,
-            "margin": 0.07,
-            "atr_mult": 2.0,
+            "leverage": 20, "margin": 0.07, "atr_mult": 2.0,
             "tp_levels": [
-                TPLevel(pnl_pct=0.10, close_pct=0.25, move_sl_to_entry=True),   # TP1: +10% -> 25%, BE
-                TPLevel(pnl_pct=0.40, close_pct=0.35, move_sl_to_entry=False),  # TP2: +40% -> 35%
-                TPLevel(pnl_pct=1.00, close_pct=1.0,  move_sl_to_entry=False),  # TP3: +100% -> rest
+                TPLevel(pnl_pct=0.10, close_pct=0.25, move_sl_to_entry=True),
+                TPLevel(pnl_pct=0.40, close_pct=0.35, move_sl_to_entry=False),
+                TPLevel(pnl_pct=1.00, close_pct=1.0,  move_sl_to_entry=False),
             ],
             "trailing": 1.0,
         },
+        # 3. Breakout — impulse, fast resolution
         {
-            "name": "Breakout",
+            "name": "3. Breakout",
             "strategy": BreakoutStrategy(symbol=CCXT_SYMBOL),
-            "leverage": 25,
-            "margin": 0.05,
-            "atr_mult": 1.0,  # Tight stop: breakout works or fails fast
+            "leverage": 25, "margin": 0.05, "atr_mult": 1.0,
             "tp_levels": [
-                TPLevel(pnl_pct=0.08, close_pct=0.40, move_sl_to_entry=True),   # TP1: +8% -> 40%, BE
-                TPLevel(pnl_pct=0.25, close_pct=0.35, move_sl_to_entry=False),  # TP2: +25% -> 35%
-                TPLevel(pnl_pct=0.60, close_pct=1.0,  move_sl_to_entry=False),  # TP3: +60% -> rest
+                TPLevel(pnl_pct=0.08, close_pct=0.40, move_sl_to_entry=True),
+                TPLevel(pnl_pct=0.25, close_pct=0.35, move_sl_to_entry=False),
+                TPLevel(pnl_pct=0.60, close_pct=1.0,  move_sl_to_entry=False),
             ],
-            "trailing": 0.0,  # No trailing: breakouts are fast
+            "trailing": 0.0,
         },
+        # 4. BollingerReversion — mean-reversion at band touches
         {
-            "name": "Fusion (all 6)",
+            "name": "4. Bollinger",
+            "strategy": BollingerMeanReversionStrategy(symbol=CCXT_SYMBOL, period=20),
+            "leverage": 20, "margin": 0.05, "atr_mult": 1.5,
+            "tp_levels": [
+                TPLevel(pnl_pct=0.10, close_pct=0.30, move_sl_to_entry=True),
+                TPLevel(pnl_pct=0.30, close_pct=0.40, move_sl_to_entry=False),
+                TPLevel(pnl_pct=0.80, close_pct=1.0,  move_sl_to_entry=False),
+            ],
+            "trailing": 0.0,  # Mean-reversion: fixed targets, no trailing
+        },
+        # 5. FundingMeanReversion — funding rate extremes
+        {
+            "name": "5. FundingMR",
+            "strategy": FundingMeanReversionStrategy(symbol=CCXT_SYMBOL),
+            "leverage": 25, "margin": 0.05, "atr_mult": 1.5,
+            "tp_levels": [
+                TPLevel(pnl_pct=0.12, close_pct=0.20, move_sl_to_entry=True),
+                TPLevel(pnl_pct=0.50, close_pct=0.40, move_sl_to_entry=False),
+                TPLevel(pnl_pct=1.50, close_pct=1.0,  move_sl_to_entry=False),
+            ],
+            "trailing": 1.2,
+        },
+        # 6. LiquidationSqueeze — cascade detection
+        {
+            "name": "6. LiqSqueeze",
+            "strategy": LiquidationSqueezeStrategy(symbol=CCXT_SYMBOL),
+            "leverage": 30, "margin": 0.05, "atr_mult": 1.0,
+            "tp_levels": [
+                TPLevel(pnl_pct=0.15, close_pct=0.30, move_sl_to_entry=True),
+                TPLevel(pnl_pct=0.80, close_pct=0.40, move_sl_to_entry=False),
+                TPLevel(pnl_pct=2.00, close_pct=1.0,  move_sl_to_entry=False),
+            ],
+            "trailing": 1.0,
+        },
+        # 7. Fusion — all 6 combined with weights
+        {
+            "name": "7. Fusion(all6)",
             "strategy": StrategyFusion(
                 strategies=[
                     (OIDivergenceStrategy(symbol=CCXT_SYMBOL, require_volume_spike=False, require_oi_delta_neg=False, oi_threshold=-0.01, min_strength=0.3), 1.2),
+                    (BollingerMeanReversionStrategy(symbol=CCXT_SYMBOL), 1.1),
+                    (LiquidationSqueezeStrategy(symbol=CCXT_SYMBOL), 1.0),
+                    (FundingMeanReversionStrategy(symbol=CCXT_SYMBOL), 0.9),
                     (TrendFollowingStrategy(symbol=CCXT_SYMBOL), 0.8),
                     (BreakoutStrategy(symbol=CCXT_SYMBOL), 0.7),
                 ],
                 min_agreement=1, min_strength=0.3,
             ),
-            "leverage": 20,
-            "margin": 0.05,
-            "atr_mult": 1.5,
+            "leverage": 20, "margin": 0.05, "atr_mult": 1.5,
             "tp_levels": [
-                TPLevel(pnl_pct=0.12, close_pct=0.20, move_sl_to_entry=True),   # TP1: +12% -> 20%, BE
-                TPLevel(pnl_pct=0.50, close_pct=0.30, move_sl_to_entry=False),  # TP2: +50% -> 30%
-                TPLevel(pnl_pct=1.20, close_pct=1.0,  move_sl_to_entry=False),  # TP3: +120% -> rest
+                TPLevel(pnl_pct=0.12, close_pct=0.20, move_sl_to_entry=True),
+                TPLevel(pnl_pct=0.50, close_pct=0.30, move_sl_to_entry=False),
+                TPLevel(pnl_pct=1.20, close_pct=1.0,  move_sl_to_entry=False),
             ],
             "trailing": 1.2,
         },
     ]
 
-    print(f"\n{'='*90}")
-    print(f"{'Strategy':<22} {'Lev':>4} {'Margin':>7} {'SL':>6} {'TP1':>12} {'TP2':>12} {'TP3':>12} {'Trail':>6}")
-    print(f"{'-'*90}")
+    # Print config table
+    print(f"\n{'='*100}")
+    print(f"{'#':<18} {'Lev':>4} {'Marg':>5} {'SL':>5} {'TP1':>14} {'TP2':>14} {'TP3':>14} {'Trail':>6}")
+    print(f"{'-'*100}")
     for cfg in configs:
         tps = cfg['tp_levels']
         tp_strs = [f"+{tp.pnl_pct:.0%}({tp.close_pct:.0%})" for tp in tps]
-        print(f"{cfg['name']:<22} {cfg['leverage']:>3}x {cfg['margin']:>5.0%}   {cfg['atr_mult']:>4.1f}a"
-              f"  {tp_strs[0]:>12} {tp_strs[1]:>12} {tp_strs[2]:>12} {cfg['trailing']:>5.1f}a")
-    print(f"{'='*90}")
+        print(f"{cfg['name']:<18} {cfg['leverage']:>3}x {cfg['margin']:>4.0%}  {cfg['atr_mult']:>4.1f}a"
+              f"  {tp_strs[0]:>14} {tp_strs[1]:>14} {tp_strs[2]:>14} {cfg['trailing']:>5.1f}a")
+    print(f"{'='*100}")
 
     # Run each
-    print(f"\n{'='*90}")
-    print(f"{'Strategy':<22} {'Trades':>6} {'WR':>6} {'PF':>7} {'Return':>8} {'MDD':>7} {'Sharpe':>7} {'Expect':>8} {'Equity':>10}")
-    print(f"{'-'*90}")
+    print(f"\n{'='*100}")
+    print(f"{'Strategy':<18} {'Trades':>6} {'WR':>6} {'PF':>7} {'Return':>8} {'MDD':>7} {'Sharpe':>7} {'Expect':>8} {'Equity':>10}")
+    print(f"{'-'*100}")
 
     for cfg in configs:
         settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=cfg["margin"])
@@ -284,11 +329,12 @@ def run_all(bundles):
         )
         r = engine.run(bundles)
         pf = f"{r.profit_factor:.2f}" if r.profit_factor < 100 else "inf"
-        print(f"{cfg['name']:<22} {r.total_trades:>6} {r.win_rate:>5.1%} {pf:>7}"
+        print(f"{cfg['name']:<18} {r.total_trades:>6} {r.win_rate:>5.1%} {pf:>7}"
               f" {r.total_return_pct:>+7.2f}% {r.max_drawdown_pct:>6.2f}% {r.sharpe_ratio:>7.2f}"
               f" {r.expectancy:>+8.2f} ${r.final_equity:>9.2f}")
 
-    print(f"{'='*90}")
+    print(f"{'='*100}")
+    print(f"\nData: {len(bundles)} candles (30min) | Real OI + Coinglass")
 
 
 def main():
