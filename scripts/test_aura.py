@@ -127,6 +127,16 @@ def run_backtest(candles):
             margin = position.entry_price * position.initial_quantity / LEVERAGE
             pnl_pct = pnl / margin if margin > 0 else 0
 
+            # --- STOP LOSS: -100% on margin ---
+            if pnl_pct <= -1.0:
+                total_pnl = pnl + position.realized_pnl
+                fee = close * position.quantity * FEE_RATE
+                equity += total_pnl - fee
+                trades.append(Trade(position.direction, position.entry_price, close, total_pnl - fee, sum(position.tp_hit), "SL(-100%)", 0, idx))
+                position = None
+                equity_curve.append(equity)
+                continue
+
             # Check TPs (highest first)
             for i in range(len(TP_LEVELS) - 1, -1, -1):
                 tp_pct, close_pct = TP_LEVELS[i]
