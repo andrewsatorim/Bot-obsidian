@@ -12,24 +12,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 BASE_URL = "https://www.okx.com"
 
-# All asset classes on OKX perpetual swaps
+# Only profitable assets from previous test (removed DOGE, XAU, AAPL, MSTR)
 SYMBOLS = [
-    # --- CRYPTO TOP-5 ---
+    # --- CRYPTO (4 profitable) ---
     ("BTC-USDT-SWAP", "BTC/USDT:USDT", "Crypto"),
     ("ETH-USDT-SWAP", "ETH/USDT:USDT", "Crypto"),
     ("SOL-USDT-SWAP", "SOL/USDT:USDT", "Crypto"),
-    ("DOGE-USDT-SWAP", "DOGE/USDT:USDT", "Crypto"),
     ("ADA-USDT-SWAP", "ADA/USDT:USDT", "Crypto"),
-    # --- COMMODITIES ---
-    ("XAU-USDT-SWAP", "XAU/USDT:USDT", "Gold"),
+    # --- COMMODITIES (1 profitable) ---
     ("XAG-USDT-SWAP", "XAG/USDT:USDT", "Silver"),
-    ("WTI-USDT-SWAP", "WTI/USDT:USDT", "Oil"),
-    ("BRENT-USDT-SWAP", "BRENT/USDT:USDT", "Oil"),
-    # --- EQUITY PERPS (new March 2026) ---
+    # --- EQUITY PERPS (3 profitable) ---
     ("TSLA-USDT-SWAP", "TSLA/USDT:USDT", "Stock"),
     ("NVDA-USDT-SWAP", "NVDA/USDT:USDT", "Stock"),
-    ("AAPL-USDT-SWAP", "AAPL/USDT:USDT", "Stock"),
-    ("MSTR-USDT-SWAP", "MSTR/USDT:USDT", "Stock"),
     ("COIN-USDT-SWAP", "COIN/USDT:USDT", "Stock"),
 ]
 
@@ -157,7 +151,7 @@ def run_backtest(bundles, symbol):
     from app.config import Settings
     from app.risk.risk_manager import RiskManager
     from app.strategy.breakout import BreakoutStrategy
-    settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=0.07)
+    settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=0.15)
     tp_levels = [
         TPLevel(0.08, 0.40, True),
         TPLevel(0.25, 0.35, False),
@@ -169,7 +163,7 @@ def run_backtest(bundles, symbol):
         risk=RiskManager(settings),
         initial_equity=10_000.0,
         leverage=25,
-        max_position_pct=0.07,
+        max_position_pct=0.15,
         atr_risk_multiplier=1.0,
         tp_levels=tp_levels,
         trailing_stop_atr=0.0,
@@ -181,8 +175,8 @@ def main():
 
     print(f"{'='*110}")
     print(f"BREAKOUT STRATEGY: ALL ASSET CLASSES ON OKX")
-    print(f"Crypto + Gold + Equity Perpetuals")
-    print(f"Leverage: 25x | Margin: 7% | SL: 1.0 ATR | TF: 30min")
+    print(f"Profitable assets only (8) | Margin 15%")
+    print(f"Leverage: 25x | Margin: 15% | SL: 1.0 ATR | TF: 30min")
     print(f"{'='*110}")
 
     # First check which instruments exist
