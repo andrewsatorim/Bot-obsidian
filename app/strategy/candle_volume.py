@@ -190,8 +190,8 @@ class CandleVolumeStrategy(StrategyPort):
             return None
 
         # Regime filter: only trade reversals
-        allowed_long = features.regime_label in (RegimeLabel.TREND_DOWN, RegimeLabel.RANGING)
-        allowed_short = features.regime_label in (RegimeLabel.TREND_UP, RegimeLabel.RANGING)
+        allowed_long = features.regime_label in (RegimeLabel.TREND_DOWN, RegimeLabel.RANGE)
+        allowed_short = features.regime_label in (RegimeLabel.TREND_UP, RegimeLabel.RANGE)
 
         for direction in [Direction.LONG, Direction.SHORT]:
             if direction == Direction.LONG and not allowed_long:
