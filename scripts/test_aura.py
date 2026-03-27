@@ -1,4 +1,4 @@
-"""Aura V14 backtest — FIXED: PnL at trigger price, correct Coinglass header.
+"""Aura V14 backtest — limit orders + loss cooldown filter.
 
 Usage: python scripts/test_aura.py
 """
@@ -11,9 +11,8 @@ from app.strategy.aura_v14 import AuraV14
 
 SYMBOL = "BTC-USDT-SWAP"
 BASE_URL = "https://www.okx.com"
-CG_KEY = os.environ.get("BOT_COINGLASS_API_KEY", "ce8e53d9a000432bbd0bafa1bc4e9171")
 LEVERAGE = 40
-FEE_RATE = 0.0006  # maker+taker average
+
 TP_LEVELS = [(0.15, 0.10), (0.50, 0.60), (3.00, 1.00)]
 
 def okx_get(path, params=None):
@@ -58,18 +57,18 @@ class Trade:
     tp_hits: int; exit_reason: str; entry_idx: int; exit_idx: int
 
 def should_skip(signal, prev_dirs):
-    """Require 2 PRIOR candles in signal direction (not including current)."""
+    """Require 2 PRIOR candles in signal direction."""
     nd = "LONG" if signal == "BUY" else "SHORT"
-    if len(prev_dirs) < 3:  # need at least 2 prior + current
+    if len(prev_dirs) < 3:
         return True
-    # Check 2 prior candles (not current which is [-1])
     if nd == "LONG" and not (prev_dirs[-2] > 0 and prev_dirs[-3] > 0):
         return True
     if nd == "SHORT" and not (prev_dirs[-2] < 0 and prev_dirs[-3] < 0):
         return True
     return False
 
-def run_backtest(candles, sl_pct=-0.25, margin_pct=0.15, use_confirm=True):
+def run_backtest(candles, sl_pct=-0.25, margin_pct=0.15, fee_rate=0.0006,
+                 use_confirm=True, skip_after_loss=False):
     aura = AuraV14()
     equity = 10_000.0
     curve = [equity]
@@ -77,6 +76,7 @@ def run_backtest(candles, sl_pct=-0.25, margin_pct=0.15, use_confirm=True):
     pos = None
     sigs = 0; filt = 0
     prev_dirs = []
+    last_trade_loss = False  # Track if last trade was a loss
 
     for idx, c in enumerate(candles):
         ts, o, h, l, close, vc, vu = c
@@ -87,61 +87,51 @@ def run_backtest(candles, sl_pct=-0.25, margin_pct=0.15, use_confirm=True):
         # --- CHECK TP/SL ---
         if pos is not None:
             margin = pos.entry_price * pos.initial_quantity / LEVERAGE
-
-            # Calculate trigger prices for TP and SL
             if pos.direction == "LONG":
-                sl_trigger = pos.entry_price * (1 + sl_pct / LEVERAGE * LEVERAGE)  # Simplified
-                # SL check on LOW
                 pnl_at_low = (l - pos.entry_price) * pos.quantity
-                pnl_pct_low = pnl_at_low / margin if margin > 0 else 0
-                # TP check on HIGH
                 pnl_at_high = (h - pos.entry_price) * pos.quantity
-                pnl_pct_high = pnl_at_high / margin if margin > 0 else 0
             else:
-                pnl_at_low = (pos.entry_price - h) * pos.quantity  # worst for SHORT
-                pnl_pct_low = pnl_at_low / margin if margin > 0 else 0
-                pnl_at_high = (pos.entry_price - l) * pos.quantity  # best for SHORT
-                pnl_pct_high = pnl_at_high / margin if margin > 0 else 0
+                pnl_at_low = (pos.entry_price - h) * pos.quantity
+                pnl_at_high = (pos.entry_price - l) * pos.quantity
+            pnl_pct_low = pnl_at_low / margin if margin > 0 else 0
+            pnl_pct_high = pnl_at_high / margin if margin > 0 else 0
 
-            # SL: use worst-case price, PnL at SL trigger price (FIXED)
+            # SL at trigger price
             if pnl_pct_low <= sl_pct:
-                # Calculate exact SL trigger price
-                sl_price_move = sl_pct * margin / pos.quantity if pos.quantity > 0 else 0
-                if pos.direction == "LONG":
-                    sl_price = pos.entry_price + sl_price_move
-                else:
-                    sl_price = pos.entry_price - sl_price_move
-                sl_pnl = sl_pct * margin  # Exact PnL at SL = sl_pct * margin
+                sl_pnl = sl_pct * margin
                 total = sl_pnl + pos.realized_pnl
-                fee = abs(sl_price) * pos.quantity * FEE_RATE
+                if pos.direction == "LONG": sl_price = pos.entry_price + sl_pnl / pos.quantity
+                else: sl_price = pos.entry_price - sl_pnl / pos.quantity
+                fee = abs(sl_price) * pos.quantity * fee_rate
                 equity += total - fee
                 trades.append(Trade(pos.direction, pos.entry_price, sl_price, total-fee, sum(pos.tp_hit), f"SL({sl_pct:.0%})", 0, idx))
+                last_trade_loss = True
                 pos = None; curve.append(equity); continue
 
-            # TPs: use best-case price, PnL at TP trigger price (FIXED)
+            # TPs at trigger price
             for i in range(len(TP_LEVELS)-1, -1, -1):
                 tp_pct, cl_pct = TP_LEVELS[i]
                 if pos.tp_hit[i]: continue
                 if pnl_pct_high >= tp_pct:
                     pos.tp_hit[i] = True
-                    # PnL at exact TP price
                     tp_pnl_per_unit = tp_pct * margin / pos.initial_quantity if pos.initial_quantity > 0 else 0
                     if cl_pct >= 0.99:
-                        tp_total_pnl = tp_pct * margin + pos.realized_pnl
-                        fee = close * pos.quantity * FEE_RATE
-                        equity += tp_total_pnl - fee
-                        trades.append(Trade(pos.direction, pos.entry_price, close, tp_total_pnl-fee, sum(pos.tp_hit), f"TP{i+1}", 0, idx))
+                        tp_total = tp_pct * margin + pos.realized_pnl
+                        fee = close * pos.quantity * fee_rate
+                        equity += tp_total - fee
+                        trades.append(Trade(pos.direction, pos.entry_price, close, tp_total-fee, sum(pos.tp_hit), f"TP{i+1}", 0, idx))
+                        last_trade_loss = False
                         pos = None
                     else:
-                        cq = pos.initial_quantity * cl_pct
-                        cq = min(cq, pos.quantity)
-                        partial_pnl = tp_pnl_per_unit * cq
-                        fee = close * cq * FEE_RATE
+                        cq = min(pos.initial_quantity * cl_pct, pos.quantity)
+                        partial = tp_pnl_per_unit * cq
+                        fee = close * cq * fee_rate
                         pos.quantity -= cq
-                        pos.realized_pnl += partial_pnl - fee
+                        pos.realized_pnl += partial - fee
                         if pos.quantity <= 0.0001:
                             equity += pos.realized_pnl
                             trades.append(Trade(pos.direction, pos.entry_price, close, pos.realized_pnl, sum(pos.tp_hit), f"TP{i+1}", 0, idx))
+                            last_trade_loss = False
                             pos = None
                     break
 
@@ -149,30 +139,41 @@ def run_backtest(candles, sl_pct=-0.25, margin_pct=0.15, use_confirm=True):
         if signal is not None:
             sigs += 1
             nd = "LONG" if signal == "BUY" else "SHORT"
+
+            # Filter 1: Confirmation (2 prior candles)
             if use_confirm and should_skip(signal, prev_dirs):
                 filt += 1; curve.append(equity); continue
+
+            # Filter 2: Skip after loss (new)
+            if skip_after_loss and last_trade_loss:
+                filt += 1
+                last_trade_loss = False  # Reset — skip only 1 signal
+                curve.append(equity); continue
+
             # FLIP
             if pos is not None and pos.direction != nd:
                 if pos.direction == "LONG": pnl = (close - pos.entry_price) * pos.quantity
                 else: pnl = (pos.entry_price - close) * pos.quantity
-                fee = close * pos.quantity * FEE_RATE
+                fee = close * pos.quantity * fee_rate
                 t = pnl + pos.realized_pnl - fee
                 equity += t
                 trades.append(Trade(pos.direction, pos.entry_price, close, t, sum(pos.tp_hit), "FLIP", 0, idx))
+                last_trade_loss = t < 0
                 pos = None
+
             # OPEN
             if pos is None and equity > 0:
                 m = equity * margin_pct
                 n = m * LEVERAGE
                 q = n / close if close > 0 else 0
-                equity -= n * FEE_RATE
+                equity -= n * fee_rate
                 pos = Position(nd, close, q, q, m)
         curve.append(equity)
 
     if pos is not None:
         if pos.direction == "LONG": pnl = (candles[-1][4] - pos.entry_price) * pos.quantity
         else: pnl = (pos.entry_price - candles[-1][4]) * pos.quantity
-        fee = candles[-1][4] * pos.quantity * FEE_RATE
+        fee = candles[-1][4] * pos.quantity * 0.0006
         t = pnl + pos.realized_pnl - fee
         equity += t
         trades.append(Trade(pos.direction, pos.entry_price, candles[-1][4], t, sum(pos.tp_hit), "END", 0, len(candles)-1))
@@ -187,20 +188,28 @@ def main():
     print(f"\nData: {len(candles)} candles = {days:.0f} days")
 
     configs = [
-        {"name": "A) No filter, SL-25%, 15%",    "sl": -0.25, "m": 0.15, "cf": False},
-        {"name": "B) Confirm, SL-25%, 15%",       "sl": -0.25, "m": 0.15, "cf": True},
-        {"name": "C) Confirm, SL-25%, 10%",       "sl": -0.25, "m": 0.10, "cf": True},
-        {"name": "D) Confirm, SL-25%, 7%",        "sl": -0.25, "m": 0.07, "cf": True},
-        {"name": "E) Confirm, SL-50%, 15%",       "sl": -0.50, "m": 0.15, "cf": True},
-        {"name": "F) Confirm, SL-50%, 7%",        "sl": -0.50, "m": 0.07, "cf": True},
+        # Taker fees (0.06%)
+        {"name": "A) Taker, no filter, SL-25%, 15%",  "sl": -0.25, "m": 0.15, "fee": 0.0006, "cf": False, "sal": False},
+        {"name": "B) Taker, confirm, SL-25%, 7%",      "sl": -0.25, "m": 0.07, "fee": 0.0006, "cf": True, "sal": False},
+        {"name": "C) Taker, conf+skip, SL-25%, 7%",    "sl": -0.25, "m": 0.07, "fee": 0.0006, "cf": True, "sal": True},
+        # Maker fees (0.02%)
+        {"name": "D) Maker, no filter, SL-25%, 15%",   "sl": -0.25, "m": 0.15, "fee": 0.0002, "cf": False, "sal": False},
+        {"name": "E) Maker, confirm, SL-25%, 15%",     "sl": -0.25, "m": 0.15, "fee": 0.0002, "cf": True, "sal": False},
+        {"name": "F) Maker, conf+skip, SL-25%, 15%",   "sl": -0.25, "m": 0.15, "fee": 0.0002, "cf": True, "sal": True},
+        {"name": "G) Maker, confirm, SL-25%, 10%",     "sl": -0.25, "m": 0.10, "fee": 0.0002, "cf": True, "sal": False},
+        {"name": "H) Maker, conf+skip, SL-25%, 10%",   "sl": -0.25, "m": 0.10, "fee": 0.0002, "cf": True, "sal": True},
+        {"name": "I) Maker, confirm, SL-25%, 7%",      "sl": -0.25, "m": 0.07, "fee": 0.0002, "cf": True, "sal": False},
+        {"name": "J) Maker, conf+skip, SL-25%, 7%",    "sl": -0.25, "m": 0.07, "fee": 0.0002, "cf": True, "sal": True},
     ]
 
-    print(f"\n{'='*90}")
-    print(f"{'Config':<35} {'Sig':>4} {'Flt':>4} {'Trd':>4} {'WR':>6} {'PF':>7} {'Return':>8} {'MDD':>7} {'Equity':>10}")
-    print(f"{'-'*90}")
+    print(f"\n{'='*95}")
+    print(f"{'Config':<40} {'Sig':>4} {'Flt':>4} {'Trd':>4} {'WR':>6} {'PF':>7} {'Return':>8} {'MDD':>7} {'Equity':>10}")
+    print(f"{'-'*95}")
 
     for cfg in configs:
-        tr, cu, sg, ft = run_backtest(candles, sl_pct=cfg["sl"], margin_pct=cfg["m"], use_confirm=cfg["cf"])
+        tr, cu, sg, ft = run_backtest(candles, sl_pct=cfg["sl"], margin_pct=cfg["m"],
+                                      fee_rate=cfg["fee"], use_confirm=cfg["cf"],
+                                      skip_after_loss=cfg["sal"])
         n = len(tr)
         wr = sum(1 for t in tr if t.pnl > 0) / n * 100 if n else 0
         gp = sum(t.pnl for t in tr if t.pnl > 0)
@@ -213,9 +222,9 @@ def main():
             dd = (pk - eq) / pk * 100
             if dd > md: md = dd
         pfs = f"{pf:.2f}" if pf < 100 else "inf"
-        print(f"{cfg['name']:<35} {sg:>4} {ft:>4} {n:>4} {wr:>5.1f}% {pfs:>7} {ret:>+7.2f}% {md:>6.2f}% ${cu[-1]:>9.2f}")
-        # Show exit distribution for best config
-        if cfg['name'].startswith('B)'):
+        print(f"{cfg['name']:<40} {sg:>4} {ft:>4} {n:>4} {wr:>5.1f}% {pfs:>7} {ret:>+7.2f}% {md:>6.2f}% ${cu[-1]:>9.2f}")
+        # Detail for best configs
+        if cfg['name'].startswith(('F)', 'H)')):
             reasons = {}
             for t in tr: reasons[t.exit_reason] = reasons.get(t.exit_reason, 0) + 1
             print(f"    Exits: {reasons}")
@@ -224,14 +233,10 @@ def main():
                 worst = min(tr, key=lambda t: t.pnl)
                 print(f"    Best:  ${best.pnl:+.2f} ({best.direction}->{best.exit_reason})")
                 print(f"    Worst: ${worst.pnl:+.2f} ({worst.direction}->{worst.exit_reason})")
-    print(f"{'='*90}")
-    print(f"\nFixes applied:")
-    print(f"  1. Wilder's RMA for RSI/ADX/ATR (matches Pine Script)")
-    print(f"  2. Alpha line init from first valid bar (was 0.0)")
-    print(f"  3. PnL at trigger price, not close (unbiased backtest)")
-    print(f"  4. MFI skips equal TP bars")
-    print(f"  5. Confirmation filter uses 2 PRIOR candles (not current)")
-    print(f"  6. Fee rate 0.06% (realistic maker+taker avg)")
+
+    print(f"{'='*95}")
+    print(f"\nKey: conf=confirmation filter, skip=skip signal after loss")
+    print(f"Maker fee=0.02% (limit orders), Taker fee=0.06% (market orders)")
 
 if __name__ == "__main__":
     main()
