@@ -36,6 +36,9 @@ class BacktestResult:
     trades: list[BacktestTrade] = field(default_factory=list)
     equity_curve: list[float] = field(default_factory=list)
     initial_equity: float = 10_000.0
+    tp_hits: dict[int, int] = field(default_factory=dict)  # tp_level_index -> count
+    sl_hits: int = 0
+    timeout_exits: int = 0
 
     @property
     def final_equity(self) -> float:
@@ -209,7 +212,7 @@ class BacktestEngine:
 
             # Check exit for open position
             if position is not None:
-                closed, pnl, fee = self._check_exit(position, price)
+                closed, pnl, fee, exit_type = self._check_exit(position, price)
                 if closed:
                     result.trades.append(BacktestTrade(
                         entry_price=position.entry_price,
@@ -222,6 +225,12 @@ class BacktestEngine:
                         exit_idx=idx,
                     ))
                     equity += pnl - fee
+                    # Track exit type
+                    if exit_type.startswith("TP"):
+                        tp_idx = int(exit_type[2:])
+                        result.tp_hits[tp_idx] = result.tp_hits.get(tp_idx, 0) + 1
+                    elif exit_type == "SL":
+                        result.sl_hits += 1
                     position = None
 
             # Generate signal if no position
@@ -252,7 +261,8 @@ class BacktestEngine:
         # Force close open position at end
         if position is not None:
             price = data[-1].market.price
-            _, pnl, fee = self._check_exit(position, price, force=True)
+            _, pnl, fee, _ = self._check_exit(position, price, force=True)
+            result.timeout_exits += 1
             result.trades.append(BacktestTrade(
                 entry_price=position.entry_price,
                 exit_price=price,
@@ -269,8 +279,9 @@ class BacktestEngine:
         logger.info("backtest complete: %d trades, return=%.2f%%", result.total_trades, result.total_return_pct)
         return result
 
-    def _check_exit(self, pos: _OpenPosition, price: float, force: bool = False) -> tuple[bool, float, float]:
-        """Check exit conditions with N-tier TP system + trailing stop."""
+    def _check_exit(self, pos: _OpenPosition, price: float, force: bool = False) -> tuple[bool, float, float, str]:
+        """Check exit conditions with N-tier TP system + trailing stop.
+        Returns: (closed, pnl, fee, exit_type) where exit_type is 'TP0','TP1','TP2','SL','FORCE'."""
         # Current PnL on remaining qty
         if pos.direction == Direction.LONG:
             pnl = (price - pos.entry_price) * pos.quantity
@@ -310,7 +321,7 @@ class BacktestEngine:
                     # Full close — this is the final TP
                     total_pnl = pnl + pos.realized_pnl
                     fee = price * pos.quantity * FEE_RATE
-                    return True, total_pnl, fee
+                    return True, total_pnl, fee, f"TP{i}"
 
                 # Partial close
                 close_qty = pos.initial_quantity * tp.close_pct
@@ -327,7 +338,7 @@ class BacktestEngine:
                     pos.stop_loss = pos.entry_price
 
                 if pos.quantity <= 0.0001:
-                    return True, pos.realized_pnl, 0.0
+                    return True, pos.realized_pnl, 0.0, f"TP{i}"
                 break  # Process one TP per tick
 
         # --- Stop loss ---
@@ -335,12 +346,17 @@ class BacktestEngine:
             (pos.direction == Direction.LONG and price <= pos.stop_loss)
             or (pos.direction == Direction.SHORT and price >= pos.stop_loss)
         )
-        if hit_sl or force:
+        if hit_sl:
             total_pnl = pnl + pos.realized_pnl
             fee = price * pos.quantity * FEE_RATE
-            return True, total_pnl, fee
+            return True, total_pnl, fee, "SL"
 
-        return False, 0.0, 0.0
+        if force:
+            total_pnl = pnl + pos.realized_pnl
+            fee = price * pos.quantity * FEE_RATE
+            return True, total_pnl, fee, "FORCE"
+
+        return False, 0.0, 0.0, ""
 
     def _signal_to_trade(self, signal: Signal, features: FeatureVector) -> TradeCandidate:
         from app.models.enums import SetupType

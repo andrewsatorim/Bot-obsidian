@@ -250,6 +250,33 @@ def main():
         print(f"Worst: {worst[0]} ({worst[1].total_return_pct:+.2f}%)")
         print(f"Profitable: {profitable}/{len(results)} assets")
 
+        # --- TP/SL STATS ---
+        print(f"\n{'='*110}")
+        print(f"СТАТИСТИКА ТЕЙК-ПРОФИТОВ И СТОП-ЛОССОВ")
+        print(f"{'='*110}")
+        print(f"  TP1 (+8%, закрыть 40%) | TP2 (+25%, закрыть 35%) | TP3 (+60%, закрыть 100%)")
+        print(f"{'-'*110}")
+        total_tp = {0: 0, 1: 0, 2: 0}
+        total_sl = 0
+        total_timeout = 0
+        for name in sorted(results):
+            r = results[name]
+            tp0 = r.tp_hits.get(0, 0)
+            tp1 = r.tp_hits.get(1, 0)
+            tp2 = r.tp_hits.get(2, 0)
+            total_tp[0] += tp0
+            total_tp[1] += tp1
+            total_tp[2] += tp2
+            total_sl += r.sl_hits
+            total_timeout += r.timeout_exits
+            print(f"  {name:<20} TP1={tp0}  TP2={tp1}  TP3={tp2}  SL={r.sl_hits}  Timeout={r.timeout_exits}")
+        print(f"{'-'*110}")
+        all_exits = sum(total_tp.values()) + total_sl + total_timeout
+        print(f"  {'ИТОГО':<20} TP1={total_tp[0]}  TP2={total_tp[1]}  TP3={total_tp[2]}  SL={total_sl}  Timeout={total_timeout}")
+        if all_exits > 0:
+            print(f"  {'%':<20} TP1={total_tp[0]/all_exits:.0%}  TP2={total_tp[1]/all_exits:.0%}  TP3={total_tp[2]/all_exits:.0%}  SL={total_sl/all_exits:.0%}  Timeout={total_timeout/all_exits:.0%}")
+        print(f"{'='*110}")
+
         # --- PROFIT CALCULATION on $10,000 deposit ---
         deposit = 10_000.0
         print(f"\n{'='*110}")
