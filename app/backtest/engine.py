@@ -300,7 +300,9 @@ class BacktestEngine:
         pnl_on_margin_pct = total_pnl_for_tp / margin if margin > 0 else 0.0
 
         # --- Trailing stop update ---
-        if self.trailing_stop_atr > 0 and pos.atr > 0 and pos.tp_hits > 0:
+        # Activate trailing immediately if no TP levels, or after first TP hit
+        trail_active = self.trailing_stop_atr > 0 and pos.atr > 0
+        if trail_active and (pos.tp_hits > 0 or not self.tp_levels):
             trail_dist = self.trailing_stop_atr * pos.atr
             if pos.direction == Direction.LONG:
                 if pos.peak_price is None or price > pos.peak_price:
