@@ -250,6 +250,32 @@ def main():
         print(f"Worst: {worst[0]} ({worst[1].total_return_pct:+.2f}%)")
         print(f"Profitable: {profitable}/{len(results)} assets")
 
+        # --- TRADE DURATION ---
+        print(f"\n{'='*110}")
+        print(f"ДЛИТЕЛЬНОСТЬ СДЕЛОК (каждая свеча = 30 мин)")
+        print(f"{'='*110}")
+        for name in sorted(results, key=lambda x: results[x].total_return_pct, reverse=True):
+            r = results[name]
+            if not r.trades:
+                continue
+            print(f"  {name}:")
+            for j, t in enumerate(r.trades):
+                bars = t.exit_idx - t.entry_idx
+                hours = bars * 30 / 60
+                days = hours / 24
+                direction = t.direction.value
+                pnl_sign = "+" if t.pnl > 0 else ""
+                if days >= 1:
+                    dur_str = f"{days:.1f}д ({hours:.0f}ч)"
+                else:
+                    dur_str = f"{hours:.1f}ч ({bars} свечей)"
+                print(f"    #{j+1} {direction:>5} вход={t.entry_price:.2f} выход={t.exit_price:.2f} "
+                      f"PnL={pnl_sign}{t.pnl:.2f} длит={dur_str}")
+            avg_bars = sum(t.exit_idx - t.entry_idx for t in r.trades) / len(r.trades)
+            avg_hours = avg_bars * 30 / 60
+            print(f"    Среднее: {avg_hours:.1f}ч ({avg_bars:.0f} свечей)")
+        print(f"{'='*110}")
+
         # --- TP/SL STATS ---
         print(f"\n{'='*110}")
         print(f"СТАТИСТИКА ТЕЙК-ПРОФИТОВ И СТОП-ЛОССОВ")
