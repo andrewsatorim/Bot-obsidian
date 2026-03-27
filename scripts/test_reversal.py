@@ -154,7 +154,7 @@ def run_backtest(bundles, symbol):
         max_position_pct=0.15,
         atr_risk_multiplier=1.5,   # wider SL for reversals
         tp_levels=[],              # NO TP — trailing stop only
-        trailing_stop_atr=2.5,     # aggressive trailing stop
+        trailing_stop_atr=3.5,     # wide trailing to ride the trend
     )
     return engine.run(bundles)
 
@@ -164,7 +164,7 @@ def main():
     print(f"{'='*110}")
     print(f"REVERSAL STRATEGY: Trend Reversal Catcher")
     print(f"RSI divergence + EMA cross + Volume climax + OI expansion")
-    print(f"Leverage: 25x | Margin: 15% | SL: 1.5 ATR | Trailing: 2.5 ATR | NO TP")
+    print(f"Leverage: 25x | Margin: 15% | SL: 1.5 ATR | Trailing: 3.5 ATR | NO TP")
     print(f"{'='*110}")
 
     print("\nChecking available instruments...", end=" ", flush=True)
