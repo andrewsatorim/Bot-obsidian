@@ -22,6 +22,9 @@ SYMBOLS = [
     ("ADA-USDT-SWAP", "ADA/USDT:USDT", "Crypto"),
     # --- COMMODITIES ---
     ("XAU-USDT-SWAP", "XAU/USDT:USDT", "Gold"),
+    ("XAG-USDT-SWAP", "XAG/USDT:USDT", "Silver"),
+    ("WTI-USDT-SWAP", "WTI/USDT:USDT", "Oil"),
+    ("BRENT-USDT-SWAP", "BRENT/USDT:USDT", "Oil"),
     # --- EQUITY PERPS (new March 2026) ---
     ("TSLA-USDT-SWAP", "TSLA/USDT:USDT", "Stock"),
     ("NVDA-USDT-SWAP", "NVDA/USDT:USDT", "Stock"),
