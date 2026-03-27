@@ -12,19 +12,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 BASE_URL = "https://www.okx.com"
 
-# Only profitable assets from previous test (removed DOGE, XAU, AAPL, MSTR)
+# Top-6 profitable assets (removed XAG, COIN — went negative at 15% margin)
 SYMBOLS = [
     # --- CRYPTO (4 profitable) ---
     ("BTC-USDT-SWAP", "BTC/USDT:USDT", "Crypto"),
     ("ETH-USDT-SWAP", "ETH/USDT:USDT", "Crypto"),
     ("SOL-USDT-SWAP", "SOL/USDT:USDT", "Crypto"),
     ("ADA-USDT-SWAP", "ADA/USDT:USDT", "Crypto"),
-    # --- COMMODITIES (1 profitable) ---
-    ("XAG-USDT-SWAP", "XAG/USDT:USDT", "Silver"),
-    # --- EQUITY PERPS (3 profitable) ---
+    # --- EQUITY PERPS (2 profitable) ---
     ("TSLA-USDT-SWAP", "TSLA/USDT:USDT", "Stock"),
     ("NVDA-USDT-SWAP", "NVDA/USDT:USDT", "Stock"),
-    ("COIN-USDT-SWAP", "COIN/USDT:USDT", "Stock"),
 ]
 
 def okx_get(path, params=None):
@@ -175,7 +172,7 @@ def main():
 
     print(f"{'='*110}")
     print(f"BREAKOUT STRATEGY: ALL ASSET CLASSES ON OKX")
-    print(f"Profitable assets only (8) | Margin 15%")
+    print(f"Top-6 profitable assets | Margin 15%")
     print(f"Leverage: 25x | Margin: 15% | SL: 1.0 ATR | TF: 30min")
     print(f"{'='*110}")
 
@@ -252,6 +249,30 @@ def main():
         print(f"\nBest:  {best[0]} ({best[1].total_return_pct:+.2f}%)")
         print(f"Worst: {worst[0]} ({worst[1].total_return_pct:+.2f}%)")
         print(f"Profitable: {profitable}/{len(results)} assets")
+
+        # --- PROFIT CALCULATION on $10,000 deposit ---
+        deposit = 10_000.0
+        print(f"\n{'='*110}")
+        print(f"РАСЧЁТ ПРОФИТА НА ДЕПОЗИТ ${deposit:,.0f}")
+        print(f"{'='*110}")
+        total_profit = 0
+        for name in sorted(results, key=lambda x: results[x].total_return_pct, reverse=True):
+            r = results[name]
+            profit = deposit * r.total_return_pct / 100
+            total_profit += profit
+            final = deposit + profit
+            mark = "+" if profit >= 0 else ""
+            print(f"  {name:<20} {r.total_return_pct:>+7.2f}%  ->  {mark}${abs(profit):>8.2f}  (итого ${final:>10.2f})")
+        avg_ret = total_ret / len(results) if results else 0
+        avg_profit = deposit * avg_ret / 100
+        print(f"{'-'*110}")
+        print(f"  {'СРЕДНИЙ RETURN':<20} {avg_ret:>+7.2f}%  ->  +${avg_profit:>8.2f}  (итого ${deposit + avg_profit:>10.2f})")
+        print(f"")
+        print(f"  Торговля ВСЕМИ {len(results)} активами одновременно (${deposit:,.0f} на каждый):")
+        print(f"  Депозит: ${deposit * len(results):>12,.2f}")
+        print(f"  Профит:  ${total_profit:>+12,.2f}")
+        print(f"  Итого:   ${deposit * len(results) + total_profit:>12,.2f}")
+        print(f"{'='*110}")
 
 if __name__ == "__main__":
     main()
