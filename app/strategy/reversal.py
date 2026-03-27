@@ -14,38 +14,49 @@ logger = logging.getLogger(__name__)
 
 
 class ReversalStrategy(StrategyPort):
-    """Catches major trend reversals using multi-signal confirmation.
+    """Catches major trend reversals using scoring system.
 
-    Entry conditions (all must be true):
-    1. RSI extreme: RSI < 25 (oversold->LONG) or RSI > 75 (overbought->SHORT)
-    2. RSI divergence: price makes new low but RSI doesn't (or inverse)
-    3. EMA crossover: fast EMA(9) crosses slow EMA(21) in reversal direction
-    4. Volume climax: volume > 1.8x average (capitulation/climax)
-    5. OI expansion: new money entering (oi_trend > 0.005)
+    Scores 5 factors (each 0 or 1 point). Signals when score >= 3.
+    Factors persist for a window of bars (not just current bar).
 
-    Exit: trailing stop only, no TP levels.
+    1. RSI extreme zone (< 30 or > 70) within last 5 bars
+    2. RSI divergence within last 10 bars
+    3. EMA(9)/EMA(21) crossover within last 3 bars
+    4. Volume spike (> 1.3x avg)
+    5. OI expansion (oi_trend > 0)
+
+    Exit: trailing stop only, no TP.
     """
 
     def __init__(self, symbol: str = "BTC/USDT",
-                 rsi_oversold: float = 25.0,
-                 rsi_overbought: float = 75.0,
+                 rsi_oversold: float = 30.0,
+                 rsi_overbought: float = 70.0,
                  rsi_period: int = 14,
-                 volume_climax: float = 1.8,
-                 oi_min: float = 0.005,
-                 lookback: int = 20) -> None:
+                 volume_threshold: float = 1.3,
+                 min_score: int = 3,
+                 lookback: int = 15) -> None:
         self._symbol = symbol
         self._rsi_oversold = rsi_oversold
         self._rsi_overbought = rsi_overbought
         self._rsi_period = rsi_period
-        self._volume_climax = volume_climax
-        self._oi_min = oi_min
+        self._volume_threshold = volume_threshold
+        self._min_score = min_score
         self._lookback = lookback
         self._price_history: deque[float] = deque(maxlen=60)
         self._rsi_history: deque[float] = deque(maxlen=60)
+        # Track recent signals from each factor
+        self._rsi_extreme_bars: deque[int] = deque(maxlen=5)  # bar indices where RSI was extreme
+        self._rsi_extreme_dir: deque[Direction] = deque(maxlen=5)
+        self._ema_cross_bar: int = -100  # last bar with EMA cross
+        self._ema_cross_dir: Direction | None = None
+        self._divergence_bar: int = -100
+        self._divergence_dir: Direction | None = None
+        # EMA state
         self._ema_fast: float | None = None
         self._ema_slow: float | None = None
         self._prev_ema_fast: float | None = None
         self._prev_ema_slow: float | None = None
+        # RSI state (Wilder's RMA)
         self._rma_gain: float = 0.0
         self._rma_loss: float = 0.0
         self._rsi_initialized: bool = False
@@ -57,18 +68,17 @@ class ReversalStrategy(StrategyPort):
         self._bar_count += 1
 
         if self._bar_count < 2:
-            return 50.0  # neutral
+            return 50.0
 
         prices = list(self._price_history)
         delta = prices[-1] - prices[-2]
         gain = max(delta, 0.0)
         loss = max(-delta, 0.0)
-
         period = self._rsi_period
+
         if not self._rsi_initialized:
             if self._bar_count < period + 1:
                 return 50.0
-            # Seed with SMA of first `period` changes
             gains = []
             losses = []
             for i in range(len(prices) - period, len(prices)):
@@ -79,15 +89,13 @@ class ReversalStrategy(StrategyPort):
             self._rma_loss = sum(losses) / period
             self._rsi_initialized = True
         else:
-            # Wilder's RMA: rma = (prev * (period-1) + value) / period
             self._rma_gain = (self._rma_gain * (period - 1) + gain) / period
             self._rma_loss = (self._rma_loss * (period - 1) + loss) / period
 
         if self._rma_loss == 0:
             return 100.0
         rs = self._rma_gain / self._rma_loss
-        rsi = 100.0 - 100.0 / (1.0 + rs)
-        return rsi
+        return 100.0 - 100.0 / (1.0 + rs)
 
     def _update_ema(self, price: float) -> None:
         """Update EMA(9) and EMA(21) incrementally."""
@@ -98,114 +106,121 @@ class ReversalStrategy(StrategyPort):
             if self._bar_count >= 9:
                 prices = list(self._price_history)
                 self._ema_fast = sum(prices[-9:]) / 9
-            else:
-                return
-        else:
-            k = 2.0 / (9 + 1)
-            self._ema_fast = price * k + self._ema_fast * (1 - k)
+            return
+        k9 = 2.0 / 10
+        self._ema_fast = price * k9 + self._ema_fast * (1 - k9)
 
         if self._ema_slow is None:
             if self._bar_count >= 21:
                 prices = list(self._price_history)
                 self._ema_slow = sum(prices[-21:]) / 21
-            else:
-                return
-        else:
-            k = 2.0 / (21 + 1)
-            self._ema_slow = price * k + self._ema_slow * (1 - k)
+            return
+        k21 = 2.0 / 22
+        self._ema_slow = price * k21 + self._ema_slow * (1 - k21)
 
-    def _detect_bullish_divergence(self) -> bool:
-        """Price makes lower low but RSI makes higher low."""
+    def _check_divergence(self, rsi: float) -> None:
+        """Check for RSI divergence and store if found."""
         if len(self._rsi_history) < self._lookback:
-            return False
+            return
         prices = list(self._price_history)[-self._lookback:]
         rsis = list(self._rsi_history)[-self._lookback:]
         half = len(prices) // 2
         if half < 3:
-            return False
-        price_lower = min(prices[half:]) < min(prices[:half])
-        rsi_higher = min(rsis[half:]) > min(rsis[:half])
-        return price_lower and rsi_higher
+            return
 
-    def _detect_bearish_divergence(self) -> bool:
-        """Price makes higher high but RSI makes lower high."""
-        if len(self._rsi_history) < self._lookback:
-            return False
-        prices = list(self._price_history)[-self._lookback:]
-        rsis = list(self._rsi_history)[-self._lookback:]
-        half = len(prices) // 2
-        if half < 3:
-            return False
-        price_higher = max(prices[half:]) > max(prices[:half])
-        rsi_lower = max(rsis[half:]) < max(rsis[:half])
-        return price_higher and rsi_lower
+        # Bullish divergence
+        if (min(prices[half:]) < min(prices[:half]) and
+                min(rsis[half:]) > min(rsis[:half])):
+            self._divergence_bar = self._bar_count
+            self._divergence_dir = Direction.LONG
 
-    def _ema_crossover(self, direction: Direction) -> bool:
-        """Check if fast EMA just crossed slow EMA."""
+        # Bearish divergence
+        if (max(prices[half:]) > max(prices[:half]) and
+                max(rsis[half:]) < max(rsis[:half])):
+            self._divergence_bar = self._bar_count
+            self._divergence_dir = Direction.SHORT
+
+    def _check_ema_cross(self) -> None:
+        """Check for EMA crossover and store if found."""
         if (self._ema_fast is None or self._ema_slow is None or
                 self._prev_ema_fast is None or self._prev_ema_slow is None):
-            return False
-        if direction == Direction.LONG:
-            return self._prev_ema_fast <= self._prev_ema_slow and self._ema_fast > self._ema_slow
-        else:
-            return self._prev_ema_fast >= self._prev_ema_slow and self._ema_fast < self._ema_slow
+            return
+        # Bullish cross
+        if self._prev_ema_fast <= self._prev_ema_slow and self._ema_fast > self._ema_slow:
+            self._ema_cross_bar = self._bar_count
+            self._ema_cross_dir = Direction.LONG
+        # Bearish cross
+        elif self._prev_ema_fast >= self._prev_ema_slow and self._ema_fast < self._ema_slow:
+            self._ema_cross_bar = self._bar_count
+            self._ema_cross_dir = Direction.SHORT
 
     def generate_signal(self, features: FeatureVector) -> Optional[Signal]:
         price = features.price
-
-        # Update indicators
         rsi = self._update_rsi(price)
         self._update_ema(price)
         self._rsi_history.append(rsi)
 
-        # Need enough history
+        # Track RSI extremes
+        if rsi < self._rsi_oversold:
+            self._rsi_extreme_bars.append(self._bar_count)
+            self._rsi_extreme_dir.append(Direction.LONG)
+        elif rsi > self._rsi_overbought:
+            self._rsi_extreme_bars.append(self._bar_count)
+            self._rsi_extreme_dir.append(Direction.SHORT)
+
+        # Check divergence and EMA cross (store for window)
+        self._check_divergence(rsi)
+        self._check_ema_cross()
+
         if self._bar_count < max(self._lookback, 22):
             return None
 
-        direction = None
+        # --- Scoring system for each direction ---
+        for direction in [Direction.LONG, Direction.SHORT]:
+            score = 0
+            reasons = []
 
-        # Check LONG reversal (oversold + bullish divergence)
-        if rsi < self._rsi_oversold:
-            if self._detect_bullish_divergence():
-                direction = Direction.LONG
+            # 1. RSI extreme within last 5 bars
+            for i in range(len(self._rsi_extreme_bars)):
+                if (self._bar_count - self._rsi_extreme_bars[i] <= 5 and
+                        self._rsi_extreme_dir[i] == direction):
+                    score += 1
+                    reasons.append("RSI")
+                    break
 
-        # Check SHORT reversal (overbought + bearish divergence)
-        elif rsi > self._rsi_overbought:
-            if self._detect_bearish_divergence():
-                direction = Direction.SHORT
+            # 2. RSI divergence within last 10 bars
+            if (self._bar_count - self._divergence_bar <= 10 and
+                    self._divergence_dir == direction):
+                score += 1
+                reasons.append("DIV")
 
-        if direction is None:
-            return None
+            # 3. EMA crossover within last 3 bars
+            if (self._bar_count - self._ema_cross_bar <= 3 and
+                    self._ema_cross_dir == direction):
+                score += 1
+                reasons.append("EMA")
 
-        # EMA crossover confirmation
-        if not self._ema_crossover(direction):
-            return None
+            # 4. Volume spike (current bar)
+            if features.volume_ratio >= self._volume_threshold:
+                score += 1
+                reasons.append("VOL")
 
-        # Volume climax confirmation
-        if features.volume_ratio < self._volume_climax:
-            return None
+            # 5. OI expansion (current bar)
+            if features.oi_trend > 0:
+                score += 1
+                reasons.append("OI")
 
-        # OI expansion (new money entering)
-        if features.oi_trend < self._oi_min:
-            return None
+            if score >= self._min_score:
+                strength = min(score / 5.0, 1.0)
+                signal = Signal(
+                    symbol=self._symbol,
+                    direction=direction,
+                    strength=strength,
+                    timestamp=int(time.time()),
+                )
+                logger.info("REVERSAL %s score=%d/5 [%s] rsi=%.1f vol=%.2f",
+                            direction.value, score, "+".join(reasons),
+                            rsi, features.volume_ratio)
+                return signal
 
-        # Signal strength
-        if direction == Direction.LONG:
-            rsi_strength = max(0, (self._rsi_oversold - rsi) / self._rsi_oversold)
-        else:
-            rsi_strength = max(0, (rsi - self._rsi_overbought) / (100 - self._rsi_overbought))
-
-        vol_strength = min(features.volume_ratio / 3.0, 1.0)
-        strength = (rsi_strength * 0.4 + vol_strength * 0.3 +
-                    min(features.oi_trend / 0.05, 1.0) * 0.3)
-        strength = max(min(strength, 1.0), 0.1)
-
-        signal = Signal(
-            symbol=self._symbol,
-            direction=direction,
-            strength=strength,
-            timestamp=int(time.time()),
-        )
-        logger.info("REVERSAL signal: %s strength=%.2f rsi=%.1f vol=%.2f",
-                     direction.value, strength, rsi, features.volume_ratio)
-        return signal
+        return None
