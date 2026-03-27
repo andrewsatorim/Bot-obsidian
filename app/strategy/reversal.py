@@ -14,48 +14,44 @@ logger = logging.getLogger(__name__)
 
 
 class ReversalStrategy(StrategyPort):
-    """Catches major trend reversals — strict entry, wide trailing stop.
+    """Catches MAJOR trend reversals only — very selective.
 
-    MANDATORY: RSI divergence must be present.
-    Then score 3 additional factors (need >= 2 of 4):
-    1. RSI in extreme zone (< 30 or > 70) within last 5 bars
-    2. EMA(9)/EMA(21) crossover within last 3 bars
-    3. Volume climax (> 1.5x avg)
-    4. OI expansion (oi_trend > 0)
+    STRICT entry (all required):
+    1. RSI extreme (< 20 or > 80) — deep oversold/overbought
+    2. RSI divergence on wide window (30 bars)
+    3. Price structure confirmation: first higher-high (LONG) or lower-low (SHORT)
+       after the extreme — proves reversal has STARTED
+    4. At least 1 of: volume climax OR OI expansion
 
-    Regime filter: only LONG from TREND_DOWN, only SHORT from TREND_UP.
-    Cooldown: minimum 20 bars between trades.
+    Regime: only LONG from TREND_DOWN, SHORT from TREND_UP.
+    Cooldown: 40 bars (20 hours) between trades.
+    Exit: trailing stop 3.5 ATR, no TP.
     """
 
     def __init__(self, symbol: str = "BTC/USDT",
-                 rsi_oversold: float = 30.0,
-                 rsi_overbought: float = 70.0,
+                 rsi_extreme_low: float = 20.0,
+                 rsi_extreme_high: float = 80.0,
                  rsi_period: int = 14,
-                 volume_threshold: float = 1.5,
-                 min_extra_score: int = 2,
-                 lookback: int = 20,
-                 cooldown_bars: int = 20) -> None:
+                 volume_threshold: float = 1.3,
+                 divergence_window: int = 30,
+                 cooldown_bars: int = 40) -> None:
         self._symbol = symbol
-        self._rsi_oversold = rsi_oversold
-        self._rsi_overbought = rsi_overbought
+        self._rsi_extreme_low = rsi_extreme_low
+        self._rsi_extreme_high = rsi_extreme_high
         self._rsi_period = rsi_period
         self._volume_threshold = volume_threshold
-        self._min_extra_score = min_extra_score
-        self._lookback = lookback
+        self._divergence_window = divergence_window
         self._cooldown_bars = cooldown_bars
-        self._price_history: deque[float] = deque(maxlen=60)
-        self._rsi_history: deque[float] = deque(maxlen=60)
-        self._rsi_extreme_bars: deque[int] = deque(maxlen=10)
-        self._rsi_extreme_dir: deque[Direction] = deque(maxlen=10)
-        self._ema_cross_bar: int = -100
-        self._ema_cross_dir: Direction | None = None
-        self._divergence_bar: int = -100
-        self._divergence_dir: Direction | None = None
+        self._price_history: deque[float] = deque(maxlen=80)
+        self._rsi_history: deque[float] = deque(maxlen=80)
+        # Track if we're in "ready" state (divergence + extreme detected)
+        self._ready_long: bool = False
+        self._ready_short: bool = False
+        self._ready_bar: int = -100
+        self._ready_low: float = float("inf")   # lowest price during ready state (for LONG)
+        self._ready_high: float = 0.0            # highest price during ready state (for SHORT)
         self._last_signal_bar: int = -100
-        self._ema_fast: float | None = None
-        self._ema_slow: float | None = None
-        self._prev_ema_fast: float | None = None
-        self._prev_ema_slow: float | None = None
+        # RSI state
         self._rma_gain: float = 0.0
         self._rma_loss: float = 0.0
         self._rsi_initialized: bool = False
@@ -90,133 +86,111 @@ class ReversalStrategy(StrategyPort):
         rs = self._rma_gain / self._rma_loss
         return 100.0 - 100.0 / (1.0 + rs)
 
-    def _update_ema(self, price: float) -> None:
-        self._prev_ema_fast = self._ema_fast
-        self._prev_ema_slow = self._ema_slow
-        if self._ema_fast is None:
-            if self._bar_count >= 9:
-                self._ema_fast = sum(list(self._price_history)[-9:]) / 9
-            return
-        self._ema_fast = price * (2.0 / 10) + self._ema_fast * (1 - 2.0 / 10)
-        if self._ema_slow is None:
-            if self._bar_count >= 21:
-                self._ema_slow = sum(list(self._price_history)[-21:]) / 21
-            return
-        self._ema_slow = price * (2.0 / 22) + self._ema_slow * (1 - 2.0 / 22)
+    def _has_bullish_divergence(self) -> bool:
+        """Price lower low + RSI higher low over wide window."""
+        w = self._divergence_window
+        if len(self._rsi_history) < w:
+            return False
+        prices = list(self._price_history)[-w:]
+        rsis = list(self._rsi_history)[-w:]
+        third = w // 3
+        if third < 3:
+            return False
+        # Compare first third vs last third for clearer divergence
+        p_first = prices[:third]
+        p_last = prices[-third:]
+        r_first = rsis[:third]
+        r_last = rsis[-third:]
+        return min(p_last) < min(p_first) and min(r_last) > min(r_first)
 
-    def _check_divergence(self) -> None:
-        if len(self._rsi_history) < self._lookback:
-            return
-        prices = list(self._price_history)[-self._lookback:]
-        rsis = list(self._rsi_history)[-self._lookback:]
-        half = len(prices) // 2
-        if half < 3:
-            return
-        # Bullish: price lower low, RSI higher low
-        if (min(prices[half:]) < min(prices[:half]) and
-                min(rsis[half:]) > min(rsis[:half])):
-            self._divergence_bar = self._bar_count
-            self._divergence_dir = Direction.LONG
-        # Bearish: price higher high, RSI lower high
-        if (max(prices[half:]) > max(prices[:half]) and
-                max(rsis[half:]) < max(rsis[:half])):
-            self._divergence_bar = self._bar_count
-            self._divergence_dir = Direction.SHORT
-
-    def _check_ema_cross(self) -> None:
-        if (self._ema_fast is None or self._ema_slow is None or
-                self._prev_ema_fast is None or self._prev_ema_slow is None):
-            return
-        if self._prev_ema_fast <= self._prev_ema_slow and self._ema_fast > self._ema_slow:
-            self._ema_cross_bar = self._bar_count
-            self._ema_cross_dir = Direction.LONG
-        elif self._prev_ema_fast >= self._prev_ema_slow and self._ema_fast < self._ema_slow:
-            self._ema_cross_bar = self._bar_count
-            self._ema_cross_dir = Direction.SHORT
+    def _has_bearish_divergence(self) -> bool:
+        """Price higher high + RSI lower high over wide window."""
+        w = self._divergence_window
+        if len(self._rsi_history) < w:
+            return False
+        prices = list(self._price_history)[-w:]
+        rsis = list(self._rsi_history)[-w:]
+        third = w // 3
+        if third < 3:
+            return False
+        p_first = prices[:third]
+        p_last = prices[-third:]
+        r_first = rsis[:third]
+        r_last = rsis[-third:]
+        return max(p_last) > max(p_first) and max(r_last) < max(r_first)
 
     def generate_signal(self, features: FeatureVector) -> Optional[Signal]:
         price = features.price
         rsi = self._update_rsi(price)
-        self._update_ema(price)
         self._rsi_history.append(rsi)
 
-        if rsi < self._rsi_oversold:
-            self._rsi_extreme_bars.append(self._bar_count)
-            self._rsi_extreme_dir.append(Direction.LONG)
-        elif rsi > self._rsi_overbought:
-            self._rsi_extreme_bars.append(self._bar_count)
-            self._rsi_extreme_dir.append(Direction.SHORT)
-
-        self._check_divergence()
-        self._check_ema_cross()
-
-        if self._bar_count < max(self._lookback, 22):
+        if self._bar_count < self._divergence_window + 5:
             return None
 
-        # Cooldown: no signal within N bars of last one
+        # --- Phase 1: Detect "ready" state (extreme RSI + divergence) ---
+
+        # Check for LONG setup: RSI < 20 + bullish divergence
+        if rsi < self._rsi_extreme_low and self._has_bullish_divergence():
+            if features.regime_label == RegimeLabel.TREND_DOWN:
+                self._ready_long = True
+                self._ready_short = False
+                self._ready_bar = self._bar_count
+                self._ready_low = price
+
+        # Check for SHORT setup: RSI > 80 + bearish divergence
+        if rsi > self._rsi_extreme_high and self._has_bearish_divergence():
+            if features.regime_label == RegimeLabel.TREND_UP:
+                self._ready_short = True
+                self._ready_long = False
+                self._ready_bar = self._bar_count
+                self._ready_high = price
+
+        # Ready state expires after 15 bars
+        if self._bar_count - self._ready_bar > 15:
+            self._ready_long = False
+            self._ready_short = False
+
+        # Cooldown
         if self._bar_count - self._last_signal_bar < self._cooldown_bars:
             return None
 
-        # --- Regime filter: only reverse FROM existing trend ---
-        # LONG only from TREND_DOWN (catching bottom reversal)
-        # SHORT only from TREND_UP (catching top reversal)
-        allowed_dirs = []
-        if features.regime_label == RegimeLabel.TREND_DOWN:
-            allowed_dirs.append(Direction.LONG)
-        elif features.regime_label == RegimeLabel.TREND_UP:
-            allowed_dirs.append(Direction.SHORT)
-        else:
-            # RANGING — allow both but with higher bar
-            allowed_dirs = [Direction.LONG, Direction.SHORT]
+        # --- Phase 2: Wait for price confirmation ---
 
-        for direction in allowed_dirs:
-            # MANDATORY: RSI divergence within last 10 bars
-            has_divergence = (self._bar_count - self._divergence_bar <= 10 and
-                              self._divergence_dir == direction)
-            if not has_divergence:
-                continue
+        if self._ready_long:
+            # Track the lowest price since ready
+            self._ready_low = min(self._ready_low, price)
+            # Confirm: price made a higher high (bounced from low)
+            bounce_pct = (price - self._ready_low) / self._ready_low if self._ready_low > 0 else 0
+            if bounce_pct > 0.005:  # 0.5% bounce from low
+                # Additional filter: volume or OI
+                has_confirmation = (features.volume_ratio >= self._volume_threshold or
+                                    features.oi_trend > 0)
+                if has_confirmation:
+                    self._ready_long = False
+                    self._last_signal_bar = self._bar_count
+                    strength = min(bounce_pct * 10, 1.0)
+                    return Signal(
+                        symbol=self._symbol,
+                        direction=Direction.LONG,
+                        strength=max(strength, 0.3),
+                        timestamp=int(time.time()),
+                    )
 
-            # Score additional factors (need >= min_extra_score of 4)
-            score = 0
-            reasons = ["DIV"]
-
-            # 1. RSI extreme within last 5 bars
-            for i in range(len(self._rsi_extreme_bars)):
-                if (self._bar_count - self._rsi_extreme_bars[i] <= 5 and
-                        self._rsi_extreme_dir[i] == direction):
-                    score += 1
-                    reasons.append("RSI")
-                    break
-
-            # 2. EMA crossover within last 3 bars
-            if (self._bar_count - self._ema_cross_bar <= 3 and
-                    self._ema_cross_dir == direction):
-                score += 1
-                reasons.append("EMA")
-
-            # 3. Volume spike
-            if features.volume_ratio >= self._volume_threshold:
-                score += 1
-                reasons.append("VOL")
-
-            # 4. OI expansion
-            if features.oi_trend > 0:
-                score += 1
-                reasons.append("OI")
-
-            if score >= self._min_extra_score:
-                self._last_signal_bar = self._bar_count
-                total_score = score + 1  # +1 for divergence
-                strength = min(total_score / 5.0, 1.0)
-                signal = Signal(
-                    symbol=self._symbol,
-                    direction=direction,
-                    strength=strength,
-                    timestamp=int(time.time()),
-                )
-                logger.info("REVERSAL %s score=%d/5 [%s] rsi=%.1f regime=%s",
-                            direction.value, total_score, "+".join(reasons),
-                            rsi, features.regime_label.value)
-                return signal
+        if self._ready_short:
+            self._ready_high = max(self._ready_high, price)
+            drop_pct = (self._ready_high - price) / self._ready_high if self._ready_high > 0 else 0
+            if drop_pct > 0.005:  # 0.5% drop from high
+                has_confirmation = (features.volume_ratio >= self._volume_threshold or
+                                    features.oi_trend > 0)
+                if has_confirmation:
+                    self._ready_short = False
+                    self._last_signal_bar = self._bar_count
+                    strength = min(drop_pct * 10, 1.0)
+                    return Signal(
+                        symbol=self._symbol,
+                        direction=Direction.SHORT,
+                        strength=max(strength, 0.3),
+                        timestamp=int(time.time()),
+                    )
 
         return None
