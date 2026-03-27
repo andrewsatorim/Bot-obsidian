@@ -36,7 +36,8 @@ class BacktestResult:
     trades: list[BacktestTrade] = field(default_factory=list)
     equity_curve: list[float] = field(default_factory=list)
     initial_equity: float = 10_000.0
-    tp_hits: dict[int, int] = field(default_factory=dict)  # tp_level_index -> count
+    tp_hits: dict[int, int] = field(default_factory=dict)  # tp_level_index -> count (final exits)
+    partial_tp_hits: dict[int, int] = field(default_factory=dict)  # partial close TP hits
     sl_hits: int = 0
     timeout_exits: int = 0
 
@@ -212,7 +213,12 @@ class BacktestEngine:
 
             # Check exit for open position
             if position is not None:
+                prev_tp_hits = set(position.tp_levels_hit)
                 closed, pnl, fee, exit_type = self._check_exit(position, price)
+                # Track any NEW partial TP hits
+                new_hits = position.tp_levels_hit - prev_tp_hits
+                for tp_idx in new_hits:
+                    result.partial_tp_hits[tp_idx] = result.partial_tp_hits.get(tp_idx, 0) + 1
                 if closed:
                     result.trades.append(BacktestTrade(
                         entry_price=position.entry_price,
@@ -225,7 +231,7 @@ class BacktestEngine:
                         exit_idx=idx,
                     ))
                     equity += pnl - fee
-                    # Track exit type
+                    # Track final exit type
                     if exit_type.startswith("TP"):
                         tp_idx = int(exit_type[2:])
                         result.tp_hits[tp_idx] = result.tp_hits.get(tp_idx, 0) + 1
@@ -243,7 +249,7 @@ class BacktestEngine:
                     decision = self.risk.evaluate(trade)
 
                     if decision.allow_trade:
-                        qty = self._compute_size(equity, features.atr, decision.risk_multiplier)
+                        qty = self._compute_size(equity, features.atr, decision.risk_multiplier, price)
                         entry_fee = price * qty * FEE_RATE
                         position = _OpenPosition(
                             direction=signal.direction,
@@ -288,9 +294,10 @@ class BacktestEngine:
         else:
             pnl = (pos.entry_price - price) * pos.quantity
 
-        # PnL % on margin (based on initial position)
+        # PnL % on margin — use TOTAL pnl (realized + unrealized) vs initial margin
         margin = (pos.entry_price * pos.initial_quantity) / self.leverage
-        pnl_on_margin_pct = pnl / margin if margin > 0 else 0.0
+        total_pnl_for_tp = pnl + pos.realized_pnl
+        pnl_on_margin_pct = total_pnl_for_tp / margin if margin > 0 else 0.0
 
         # --- Trailing stop update ---
         if self.trailing_stop_atr > 0 and pos.atr > 0 and pos.tp_hits > 0:
@@ -377,18 +384,15 @@ class BacktestEngine:
             confidence=signal.strength,
         )
 
-    def _compute_size(self, equity: float, atr: float, risk_mult: float) -> float:
+    def _compute_size(self, equity: float, atr: float, risk_mult: float, price: float = 0.0) -> float:
         # Margin = equity * max_position_pct * risk_mult
-        # Position size (notional) = margin * leverage
+        # Notional = margin * leverage
+        # Quantity (in asset units) = notional / price
         margin = equity * self.max_position_pct * risk_mult
         notional = margin * self.leverage
-        # Convert notional to quantity (units of asset)
-        # We need current price — approximate from last known
-        # quantity = notional / price, but price varies; use atr as proxy for scale
-        stop_dist = atr * self.atr_multiplier
-        if stop_dist <= 0:
-            return max(notional / max(equity, 1.0), 0.001)
-        return max(notional / (stop_dist * self.leverage), 0.001)
+        if price <= 0:
+            price = max(atr * 100, 1.0)  # fallback
+        return max(notional / price, 0.000001)
 
 
 @dataclass
