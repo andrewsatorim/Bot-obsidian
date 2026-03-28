@@ -99,16 +99,16 @@ def dl_mexc_candles(symbol, interval="Min30", limit=1500):
     all_c.sort(key=lambda c: c[0])
     return all_c
 
-def dl_coinglass_oi(symbol, limit=500):
-    """Download OI history from Coinglass V4 via Binance exchange.
-    Uses h1 interval (confirmed working on HOBBYIST plan)."""
+def dl_coinglass_oi(symbol, limit=200):
+    """Download OI history from Coinglass V4 via Binance.
+    Uses h4 interval (confirmed working). 200 bars * 4h = 33 days = 1 month."""
     all_oi = []
 
-    # 1. OI OHLC history (h1 interval — confirmed working)
+    # OI OHLC history — h4 interval, 200 bars covers ~1 month
     try:
         data = cg_get("/api/futures/open-interest/history", {
             "exchange": "Binance", "symbol": symbol,
-            "interval": "h1", "limit": str(limit),
+            "interval": "h4", "limit": str(limit),
         })
         if data.get("code") == "0" and data.get("data"):
             for item in data["data"]:
@@ -116,12 +116,12 @@ def dl_coinglass_oi(symbol, limit=500):
                 close_oi = float(item.get("close", "0"))
                 if close_oi > 0:
                     all_oi.append({"ts": ts, "oiCcy": close_oi})
-            print(f"{len(all_oi)}oi", end="", flush=True)
+            print(f" {len(all_oi)}oi", end="", flush=True)
         else:
             msg = data.get("msg", "")
-            print(f"err:{msg[:20]}", end="", flush=True)
+            print(f" err:{msg[:30]}", end="", flush=True)
     except Exception as e:
-        print(f"ex:{str(e)[:20]}", end="", flush=True)
+        print(f" ex:{str(e)[:20]}", end="", flush=True)
 
     # Also try getting real-time OI change for current signal
     try:
@@ -151,13 +151,13 @@ def build_bundles(candles, oi_history, symbol):
     from app.models.market_snapshot import MarketSnapshot
     oi_map = {}
     for r in oi_history:
-        # Map each OI point to both its 1h bucket AND the two 30m sub-buckets
+        # Each 4h OI point covers 8 x 30min sub-buckets
         ts = r["ts"]
         val = r.get("oiCcy", 0)
         if val > 0:
-            h_bucket = ts // (3600*1000) * (3600*1000)
-            oi_map[h_bucket] = val
-            oi_map[h_bucket + 30*60*1000] = val  # cover second half-hour too
+            base = ts // (4*3600*1000) * (4*3600*1000)
+            for k in range(8):  # 8 x 30min = 4h
+                oi_map[base + k * 30*60*1000] = val
     hs = 50
     bundles = []
     for i in range(hs, len(candles)):
@@ -171,11 +171,8 @@ def build_bundles(candles, oi_history, symbol):
         vh = [candles[j][6] for j in range(s, i+1)]
         oih = []
         for j in range(s, i+1):
-            # Try 30m bucket first, then 1h bucket
-            ts_j = candles[j][0]
-            b30 = ts_j // (30*60*1000) * (30*60*1000)
-            b1h = ts_j // (3600*1000) * (3600*1000)
-            v = oi_map.get(b30, 0) or oi_map.get(b1h, 0)
+            b30 = candles[j][0] // (30*60*1000) * (30*60*1000)
+            v = oi_map.get(b30, 0)
             if v > 0: oih.append(v)
         if not oih: oih = [0.0]
         bundles.append(MarketDataBundle(market=snap, price_history=ph, volume_history=vh,
