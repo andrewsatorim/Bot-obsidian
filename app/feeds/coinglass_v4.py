@@ -159,6 +159,100 @@ class CoinglassV4:
             return True, "SHORT"
         return False, "NEUTRAL"
 
+    # ============ LIQUIDATION HEATMAP ============
+
+    def get_liquidation_heatmap(self, symbol: str = "BTC") -> dict:
+        """Get liquidation data — aggregated long/short liquidation volumes.
+
+        Shows where liquidation clusters are (price magnets).
+        Returns:
+            longs_liq_usd: total long liquidation volume
+            shorts_liq_usd: total short liquidation volume
+            dominant: which side has more liquidations pending
+        """
+        data = self._get("/api/futures/liquidation/detail", {"symbol": symbol})
+        result = {
+            "longs_liq_usd": 0.0,
+            "shorts_liq_usd": 0.0,
+            "dominant": "NEUTRAL",
+            "liq_ratio": 1.0,
+        }
+        if data.get("code") == "0" and data.get("data"):
+            info = data["data"]
+            if isinstance(info, dict):
+                longs = float(info.get("longVolUsd", 0) or 0)
+                shorts = float(info.get("shortVolUsd", 0) or 0)
+                result["longs_liq_usd"] = longs
+                result["shorts_liq_usd"] = shorts
+                if longs + shorts > 0:
+                    result["liq_ratio"] = longs / (longs + shorts) if (longs + shorts) > 0 else 0.5
+                if longs > shorts * 1.5:
+                    result["dominant"] = "LONGS"  # more longs to liquidate = bearish pressure
+                elif shorts > longs * 1.5:
+                    result["dominant"] = "SHORTS"  # more shorts to liquidate = bullish pressure
+        return result
+
+    def get_liquidation_history(self, symbol: str = "BTC", interval: str = "h1") -> list[dict]:
+        """Get recent liquidation events."""
+        data = self._get("/api/futures/liquidation/history", {
+            "symbol": symbol, "interval": interval, "limit": "24",
+        })
+        result = []
+        if data.get("code") == "0" and data.get("data"):
+            for item in data["data"]:
+                result.append({
+                    "time": int(item.get("time", 0)),
+                    "long_vol": float(item.get("longVolUsd", 0) or 0),
+                    "short_vol": float(item.get("shortVolUsd", 0) or 0),
+                    "count": int(item.get("count", 0) or 0),
+                })
+        return result
+
+    def get_liquidation_signal(self, symbol: str = "BTC") -> dict:
+        """Analyze liquidation heatmap for trading signal.
+
+        Logic:
+        - If massive shorts are about to be liquidated above price = bullish (short squeeze)
+        - If massive longs are about to be liquidated below price = bearish (long cascade)
+        - Recent spike in liquidations = volatility incoming
+
+        Returns:
+            signal: 'BULLISH', 'BEARISH', or 'NEUTRAL'
+            strength: 0.0 to 1.0
+            reason: explanation
+        """
+        heatmap = self.get_liquidation_heatmap(symbol)
+        history = self.get_liquidation_history(symbol)
+
+        signal = "NEUTRAL"
+        strength = 0.0
+        reason = ""
+
+        # Heatmap analysis
+        liq_ratio = heatmap.get("liq_ratio", 0.5)
+        dominant = heatmap.get("dominant", "NEUTRAL")
+
+        if dominant == "SHORTS":
+            # More shorts pending liquidation = potential short squeeze = BULLISH
+            signal = "BULLISH"
+            strength = min((heatmap["shorts_liq_usd"] / max(heatmap["longs_liq_usd"], 1) - 1) / 2, 1.0)
+            reason = f"Short squeeze potential: {heatmap['shorts_liq_usd']/1e6:.0f}M shorts vs {heatmap['longs_liq_usd']/1e6:.0f}M longs"
+        elif dominant == "LONGS":
+            # More longs pending liquidation = potential long cascade = BEARISH
+            signal = "BEARISH"
+            strength = min((heatmap["longs_liq_usd"] / max(heatmap["shorts_liq_usd"], 1) - 1) / 2, 1.0)
+            reason = f"Long cascade risk: {heatmap['longs_liq_usd']/1e6:.0f}M longs vs {heatmap['shorts_liq_usd']/1e6:.0f}M shorts"
+
+        # Recent liquidation spike analysis
+        if history and len(history) >= 2:
+            recent_total = sum(h["long_vol"] + h["short_vol"] for h in history[-3:])
+            older_total = sum(h["long_vol"] + h["short_vol"] for h in history[:-3]) / max(len(history) - 3, 1) * 3
+            if older_total > 0 and recent_total > older_total * 2:
+                strength = min(strength + 0.3, 1.0)
+                reason += " | Liquidation spike detected"
+
+        return {"signal": signal, "strength": strength, "reason": reason}
+
     # ============ COMBINED FILTER ============
 
     def check_entry_filters(self, symbol: str, direction: str) -> tuple[bool, list[str]]:
@@ -190,6 +284,14 @@ class CoinglassV4:
         is_skewed, dominant = self.is_ls_skewed(symbol)
         if is_skewed and dominant == direction:
             reasons.append(f"LS_CROWDED({dominant})")
+
+        # Filter 4: Liquidation heatmap not against our direction
+        liq = self.get_liquidation_signal(symbol)
+        if liq["strength"] > 0.3:
+            if direction == "LONG" and liq["signal"] == "BEARISH":
+                reasons.append(f"LIQ_BEARISH({liq['reason'][:40]})")
+            elif direction == "SHORT" and liq["signal"] == "BULLISH":
+                reasons.append(f"LIQ_BULLISH({liq['reason'][:40]})")
 
         passed = len(reasons) == 0
         return passed, reasons
