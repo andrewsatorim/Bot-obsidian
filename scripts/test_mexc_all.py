@@ -158,9 +158,8 @@ def build_bundles(candles, symbol):
         s = max(0, i-hs)
         ph = [candles[j][4] for j in range(s, i+1)]
         vh = [candles[j][6] for j in range(s, i+1)]
-        # Approximate OI from volume trend
-        oih = [candles[j][5] for j in range(s, i+1)]
-        if not oih or max(oih) == 0: oih = [0.0]
+        # No real OI data on MEXC — use [0.0] to disable fake OI
+        oih = [0.0]
         bundles.append(MarketDataBundle(market=snap, price_history=ph, volume_history=vh,
             oi_history=oih, funding_history=[0.0],
             liquidation_above=price*1.02, liquidation_below=price*0.98))
@@ -171,10 +170,10 @@ def run_backtest_flip(bundles, symbol):
     from app.analytics.feature_engine import FeatureEngine
     from app.backtest.engine import BacktestResult, BacktestTrade, FEE_RATE
     from app.models.enums import Direction
-    from app.strategy.breakout import BreakoutStrategy
+    from app.strategy.breakout_nooi import BreakoutNoOIStrategy
 
     fe = FeatureEngine()
-    strategy = BreakoutStrategy(symbol=symbol)
+    strategy = BreakoutNoOIStrategy(symbol=symbol, volume_min=1.5, cooldown_bars=15)
     equity = 10_000.0
     margin_pct, leverage, atr_mult, trail_atr = 0.25, 25, 1.0, 2.5
 
