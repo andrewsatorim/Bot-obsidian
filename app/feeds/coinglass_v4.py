@@ -208,50 +208,48 @@ class CoinglassV4:
                 })
         return result
 
-    def get_liquidation_signal(self, symbol: str = "BTC") -> dict:
-        """Analyze liquidation heatmap for trading signal.
+    def get_liquidation_signal(self, symbol: str, current_price: float = 0, direction: str = "") -> dict:
+        """Analyze liquidation heatmap — liquidity sweep logic.
 
-        Logic:
-        - If massive shorts are about to be liquidated above price = bullish (short squeeze)
-        - If massive longs are about to be liquidated below price = bearish (long cascade)
-        - Recent spike in liquidations = volatility incoming
+        Only blocks entry when liquidation volume is SIGNIFICANT (>$50M).
+        Small liquidation zones are noise — ignore them.
 
-        Returns:
-            signal: 'BULLISH', 'BEARISH', or 'NEUTRAL'
-            strength: 0.0 to 1.0
-            reason: explanation
+        Rules:
+        - LONG: if SHORT liq > $50M AND shorts > longs * 1.3 → SKIP (sweep incoming)
+        - SHORT: if LONG liq > $50M AND longs > shorts * 1.3 → SKIP
+        - Active cascade (3x avg liquidations) → SKIP regardless
         """
         heatmap = self.get_liquidation_heatmap(symbol)
         history = self.get_liquidation_history(symbol)
 
-        signal = "NEUTRAL"
-        strength = 0.0
-        reason = ""
+        result = {"safe": True, "reason": "", "liq_data": heatmap}
 
-        # Heatmap analysis
-        liq_ratio = heatmap.get("liq_ratio", 0.5)
-        dominant = heatmap.get("dominant", "NEUTRAL")
+        longs_liq = heatmap.get("longs_liq_usd", 0)
+        shorts_liq = heatmap.get("shorts_liq_usd", 0)
+        MIN_SIGNIFICANT = 50_000_000  # $50M minimum to consider
 
-        if dominant == "SHORTS":
-            # More shorts pending liquidation = potential short squeeze = BULLISH
-            signal = "BULLISH"
-            strength = min((heatmap["shorts_liq_usd"] / max(heatmap["longs_liq_usd"], 1) - 1) / 2, 1.0)
-            reason = f"Short squeeze potential: {heatmap['shorts_liq_usd']/1e6:.0f}M shorts vs {heatmap['longs_liq_usd']/1e6:.0f}M longs"
-        elif dominant == "LONGS":
-            # More longs pending liquidation = potential long cascade = BEARISH
-            signal = "BEARISH"
-            strength = min((heatmap["longs_liq_usd"] / max(heatmap["shorts_liq_usd"], 1) - 1) / 2, 1.0)
-            reason = f"Long cascade risk: {heatmap['longs_liq_usd']/1e6:.0f}M longs vs {heatmap['shorts_liq_usd']/1e6:.0f}M shorts"
+        if direction == "LONG":
+            if shorts_liq > MIN_SIGNIFICANT and shorts_liq > longs_liq * 1.3:
+                result["safe"] = False
+                result["reason"] = (f"Large short liq zone: ${shorts_liq/1e6:.0f}M. "
+                                    f"Wait for liquidity sweep.")
 
-        # Recent liquidation spike analysis
-        if history and len(history) >= 2:
-            recent_total = sum(h["long_vol"] + h["short_vol"] for h in history[-3:])
-            older_total = sum(h["long_vol"] + h["short_vol"] for h in history[:-3]) / max(len(history) - 3, 1) * 3
-            if older_total > 0 and recent_total > older_total * 2:
-                strength = min(strength + 0.3, 1.0)
-                reason += " | Liquidation spike detected"
+        elif direction == "SHORT":
+            if longs_liq > MIN_SIGNIFICANT and longs_liq > shorts_liq * 1.3:
+                result["safe"] = False
+                result["reason"] = (f"Large long liq zone: ${longs_liq/1e6:.0f}M. "
+                                    f"Wait for liquidity sweep.")
 
-        return {"signal": signal, "strength": strength, "reason": reason}
+        # Active cascade = extreme volatility, skip any direction
+        if history and len(history) >= 4:
+            recent = sum(h["long_vol"] + h["short_vol"] for h in history[-3:])
+            older_avg = sum(h["long_vol"] + h["short_vol"] for h in history[:-3])
+            older_avg = older_avg / max(len(history) - 3, 1) * 3
+            if older_avg > 0 and recent > older_avg * 3:
+                result["safe"] = False
+                result["reason"] += " | Active liquidation cascade — skip."
+
+        return result
 
     # ============ COMBINED FILTER ============
 
@@ -285,13 +283,10 @@ class CoinglassV4:
         if is_skewed and dominant == direction:
             reasons.append(f"LS_CROWDED({dominant})")
 
-        # Filter 4: Liquidation heatmap not against our direction
-        liq = self.get_liquidation_signal(symbol)
-        if liq["strength"] > 0.3:
-            if direction == "LONG" and liq["signal"] == "BEARISH":
-                reasons.append(f"LIQ_BEARISH({liq['reason'][:40]})")
-            elif direction == "SHORT" and liq["signal"] == "BULLISH":
-                reasons.append(f"LIQ_BULLISH({liq['reason'][:40]})")
+        # Filter 4: Liquidation heatmap — wait for liquidity sweep
+        liq = self.get_liquidation_signal(symbol, direction=direction)
+        if not liq["safe"]:
+            reasons.append(f"LIQ_SWEEP({liq['reason'][:50]})")
 
         passed = len(reasons) == 0
         return passed, reasons
