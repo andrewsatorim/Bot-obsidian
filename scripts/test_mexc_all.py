@@ -26,26 +26,16 @@ SYMBOLS = {
     "LINK": ("LINK_USDT", "Crypto"),
     "DOT": ("DOT_USDT", "Crypto"),
     "SUI": ("SUI_USDT", "Crypto"),
-    # --- GOLD / SILVER ---
-    "GOLD": ("XAUUSD_USDT", "Gold"),
-    "SILVER": ("XAGUSD_USDT", "Silver"),
+    # --- GOLD / SILVER (MEXC names) ---
+    "GOLD": ("XAUT_USDT", "Gold"),
+    "SILVER": ("SILVER_USDT", "Silver"),
+    # --- OIL (MEXC names) ---
+    "WTI": ("USOIL_USDT", "Oil"),
+    "BRENT": ("UKOIL_USDT", "Oil"),
     # --- METALS ---
     "COPPER": ("COPPER_USDT", "Metal"),
-    "PLATINUM": ("PLATINUM_USDT", "Metal"),
-    "PALLADIUM": ("PALLADIUM_USDT", "Metal"),
-    "ALUMINUM": ("ALUMINUM_USDT", "Metal"),
-    "ZINC": ("ZINC_USDT", "Metal"),
-    "NICKEL": ("NICKEL_USDT", "Metal"),
-    "TIN": ("TIN_USDT", "Metal"),
-    "LEAD": ("LEAD_USDT", "Metal"),
-    "STEEL": ("STEEL_USDT", "Metal"),
-    "IRON": ("IRON_USDT", "Metal"),
-    # --- OIL ---
-    "CRUDE": ("CRUDEOIL_USDT", "Oil"),
-    "WTI": ("WTI_USDT", "Oil"),
-    "BRENT": ("BRENT_USDT", "Oil"),
-    # --- STOCKS TOP-10 ---
-    "TSLA": ("TSLA_USDT", "Stock"),
+    # --- STOCKS (MEXC names — some use full names) ---
+    "TSLA": ("TESLA_USDT", "Stock"),
     "NVDA": ("NVDA_USDT", "Stock"),
     "AAPL": ("AAPL_USDT", "Stock"),
     "AMZN": ("AMZN_USDT", "Stock"),
