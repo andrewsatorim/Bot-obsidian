@@ -24,10 +24,11 @@ import ccxt.async_support as ccxt_async
 from app.analytics.feature_engine import FeatureEngine
 from app.config import Settings
 from app.feeds.coinglass_v4 import CoinglassV4
-from app.models.enums import Direction, OrderSide, OrderType
+from app.models.enums import Direction, SetupType
 from app.models.market_data_bundle import MarketDataBundle
 from app.models.market_snapshot import MarketSnapshot
-from app.models.order import Order
+from app.models.trade_candidate import TradeCandidate
+from app.risk.risk_manager import RiskManager
 from app.strategy.breakout import BreakoutStrategy
 
 os.makedirs("data", exist_ok=True)
@@ -180,6 +181,7 @@ class LiveBot:
         self.cg = CoinglassV4(self.settings.coinglass_api_key)
         self.fe = FeatureEngine()
         self.state = PositionState()
+        self.risk_mgr = RiskManager(self.settings)
         self.strategies: dict[str, BreakoutStrategy] = {}
 
         self.margin_pct = 0.25
@@ -197,21 +199,104 @@ class LiveBot:
             {"name": "ADA", "symbol": "ADA/USDT:USDT"},
         ]
 
-    def _build_bundles(self, candles, symbol):
+    def _build_bundles(self, candles, symbol, cg_data: dict | None = None):
+        """Build MarketDataBundles with real Coinglass data injected.
+
+        cg_data: {
+            'oi_value': float,      # current OI quantity
+            'oi_change_1h': float,  # OI change % 1h
+            'funding_rate': float,  # avg funding rate
+            'liq_above': float,     # liquidation level above
+            'liq_below': float,     # liquidation level below
+        }
+        """
+        cg = cg_data or {}
+        oi_val = cg.get("oi_value", 0)
+        funding = cg.get("funding_rate", 0)
+        liq_above_pct = cg.get("liq_above", 0)
+        liq_below_pct = cg.get("liq_below", 0)
+
         hs = min(50, len(candles) - 1)
         bundles = []
         for i in range(hs, len(candles)):
             c = candles[i]
             price, vol = c["close"], c["vol"]
+            spread = price * 0.0003
             snap = MarketSnapshot(symbol=symbol, price=price, volume=vol,
-                bid=price*0.9999, ask=price*1.0001, timestamp=max(int(c["ts"]/1000), 1))
+                bid=price - spread/2, ask=price + spread/2,
+                timestamp=max(int(c["ts"]/1000), 1))
             s = max(0, i - hs)
             ph = [candles[j]["close"] for j in range(s, i+1)]
             vh = [candles[j]["vol"] for j in range(s, i+1)]
-            bundles.append(MarketDataBundle(market=snap, price_history=ph, volume_history=vh,
-                oi_history=[0.0], funding_history=[0.0],
-                liquidation_above=price*1.02, liquidation_below=price*0.98))
+
+            # OI history: simulate trend from real-time OI change
+            # If OI grew 1% in 1h, create ascending OI series
+            oi_change = cg.get("oi_change_1h", 0) / 100 if cg.get("oi_change_1h") else 0
+            if oi_val > 0:
+                oi_steps = len(ph)
+                oi_start = oi_val / (1 + oi_change) if (1 + oi_change) != 0 else oi_val
+                oih = [oi_start + (oi_val - oi_start) * j / max(oi_steps - 1, 1)
+                       for j in range(oi_steps)]
+            else:
+                oih = [0.0]
+
+            # Funding history: use real rate
+            fh = [funding] if funding != 0 else [0.0]
+
+            # Liquidation levels from Coinglass
+            la = liq_above_pct if liq_above_pct > 0 else price * 1.02
+            lb = liq_below_pct if liq_below_pct > 0 else price * 0.98
+
+            bundles.append(MarketDataBundle(
+                market=snap, price_history=ph, volume_history=vh,
+                oi_history=oih, funding_history=fh,
+                liquidation_above=la, liquidation_below=lb,
+            ))
         return bundles
+
+    def _fetch_coinglass_data(self, name: str, price: float) -> dict:
+        """Fetch all Coinglass data for a symbol — feeds into MarketDataBundle."""
+        data = {}
+        try:
+            # 1. Real-time OI
+            oi = self.cg.get_oi_realtime(name)
+            total = oi.get("total", {})
+            data["oi_value"] = total.get("oi_qty", 0)
+            data["oi_change_1h"] = total.get("change_1h", 0)
+            data["oi_change_4h"] = total.get("change_4h", 0)
+
+            # 2. Funding rate
+            fr = self.cg.get_funding_rates(name)
+            data["funding_rate"] = fr.get("avg_rate", 0)
+
+            # 3. Liquidation heatmap → real levels
+            heatmap = self.cg.get_liquidation_heatmap(name)
+            data["longs_liq_usd"] = heatmap.get("longs_liq_usd", 0)
+            data["shorts_liq_usd"] = heatmap.get("shorts_liq_usd", 0)
+            # Estimate liquidation zones from heatmap imbalance
+            if heatmap.get("dominant") == "LONGS":
+                data["liq_below"] = price * 0.985  # longs will be liquidated below
+                data["liq_above"] = price * 1.025
+            elif heatmap.get("dominant") == "SHORTS":
+                data["liq_below"] = price * 0.975
+                data["liq_above"] = price * 1.015  # shorts liquidated above
+            else:
+                data["liq_above"] = price * 1.02
+                data["liq_below"] = price * 0.98
+
+            # 4. L/S ratio
+            ls = self.cg.get_ls_ratio(name)
+            data["ls_long_pct"] = ls.get("long_pct", 50)
+            data["ls_short_pct"] = ls.get("short_pct", 50)
+
+            logger.info("[%s] CG: OI=%.0f Δ1h=%.2f%% FR=%.4f%% L/S=%.0f/%.0f liq=$%.0fM/$%.0fM",
+                         name, data["oi_value"], data["oi_change_1h"],
+                         data["funding_rate"] * 100, data["ls_long_pct"], data["ls_short_pct"],
+                         data["longs_liq_usd"] / 1e6, data["shorts_liq_usd"] / 1e6)
+        except Exception as e:
+            logger.warning("[%s] Coinglass fetch error: %s", name, e)
+
+        return data
 
     async def setup_exchange(self):
         """Set leverage and margin mode for all symbols."""
@@ -273,6 +358,7 @@ class LiveBot:
         name = sym["name"]
         symbol = sym["symbol"]
 
+        # 1. GET CANDLES
         candles = await self.exchange.get_candles(symbol, "30m", 100)
         if len(candles) < 55:
             logger.warning("[%s] Not enough candles: %d", name, len(candles))
@@ -280,57 +366,83 @@ class LiveBot:
 
         price = candles[-1]["close"]
 
-        # Update trailing stop
+        # 2. UPDATE TRAILING STOP
         if self.state.has(name):
             self.state.update_trailing(name, price, self.trail_atr)
             if self.state.check_sl(name, price):
                 pnl = await self.close_position(sym, price, "TRAILING_STOP")
+                self.risk_mgr.record_pnl(pnl)
                 self.daily_pnl += pnl
                 return
 
-        # Generate signal
+        # 3. FETCH COINGLASS DATA (real-time OI, funding, L/S, liquidations)
+        cg_data = self._fetch_coinglass_data(name, price)
+
+        # 4. BUILD BUNDLES WITH REAL DATA
         if name not in self.strategies:
             self.strategies[name] = BreakoutStrategy(symbol=symbol)
 
-        bundles = self._build_bundles(candles, symbol)
+        bundles = self._build_bundles(candles, symbol, cg_data)
         if not bundles: return
 
+        # 5. GENERATE SIGNAL (now with real OI trend + funding in FeatureVector)
         features = self.fe.build_features(bundles[-1])
         signal = self.strategies[name].generate_signal(features)
         if signal is None: return
 
         direction = signal.direction.value
+        logger.info("[%s] Signal: %s strength=%.2f (regime=%s vol=%.2f oi_trend=%.4f funding=%.4f)",
+                     name, direction, signal.strength, features.regime_label.value,
+                     features.volume_ratio, features.oi_trend, features.funding)
 
-        # === COINGLASS FILTERS ===
+        # 6. COINGLASS FILTERS (OI expanding + Funding + L/S + Liquidation heatmap)
         passed, reasons = self.cg.check_entry_filters(name, direction)
         if not passed:
-            logger.info("[%s] Signal %s REJECTED: %s", name, direction, ", ".join(reasons))
+            logger.info("[%s] Signal %s REJECTED by Coinglass: %s", name, direction, ", ".join(reasons))
             return
 
-        # === DAILY LOSS LIMIT ===
-        if self.daily_pnl < -self.max_daily_loss:
-            logger.warning("[%s] Daily loss limit hit: $%.2f", name, self.daily_pnl)
+        # 7. RISK MANAGER (daily loss, max positions, min confidence)
+        trade = TradeCandidate(
+            symbol=symbol, direction=signal.direction,
+            setup_type=SetupType.FUNDING_MEAN_REVERSION,
+            entry_price=price, stop_loss=price - features.atr if direction == "LONG" else price + features.atr,
+            score=signal.strength, expected_value=2.0, confidence=signal.strength,
+        )
+        self.risk_mgr.open_positions = len(self.state.positions)
+        decision = self.risk_mgr.evaluate(trade)
+        if not decision.allow_trade:
+            logger.info("[%s] Signal %s REJECTED by RiskManager: %s", name, direction, decision.reason)
             return
 
-        # === MAX DRAWDOWN KILL SWITCH ===
+        # 8. MAX DRAWDOWN KILL SWITCH
         equity = self.settings.account_equity + self.daily_pnl
         if equity < self.peak_equity - self.max_drawdown:
-            logger.critical("MAX DRAWDOWN HIT. Equity=$%.2f Peak=$%.2f. HALTING.", equity, self.peak_equity)
+            logger.critical("MAX DRAWDOWN HIT. Equity=$%.2f Peak=$%.2f. HALTING ALL.", equity, self.peak_equity)
             return
 
-        # === FLIP ===
+        # 9. FLIP (close opposite + open new)
         pos = self.state.get(name)
         if pos and pos["direction"] != direction:
             pnl = await self.close_position(sym, price, f"FLIP_TO_{direction}")
+            self.risk_mgr.record_pnl(pnl)
             self.daily_pnl += pnl
 
-        # === OPEN ===
+        # 10. OPEN POSITION
         if not self.state.has(name):
             atr = features.atr if features.atr > 0 else price * 0.01
             await self.open_position(sym, direction, price, atr)
 
     async def run_once(self):
         now = datetime.now(timezone.utc)
+
+        # Daily reset at midnight UTC
+        if not hasattr(self, '_last_reset_date') or self._last_reset_date != now.date():
+            if hasattr(self, '_last_reset_date'):
+                logger.info("Daily PnL reset: $%.2f -> $0", self.daily_pnl)
+            self.daily_pnl = 0.0
+            self.risk_mgr.reset_daily()
+            self._last_reset_date = now.date()
+
         logger.info("=" * 60)
         logger.info("Cycle: %s | Mode: %s", now.strftime("%H:%M:%S UTC"),
                      "PAPER" if self.settings.paper_trading else "LIVE")
