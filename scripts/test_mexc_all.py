@@ -34,8 +34,12 @@ SYMBOLS = {
     "BRENT": ("UKOIL_USDT", "Oil"),
     # --- METALS ---
     "COPPER": ("COPPER_USDT", "Metal"),
-    # --- STOCKS (MEXC names — some use full names) ---
-    "TSLA": ("TESLA_USDT", "Stock"),
+    # --- INDICES ---
+    "SP500": ("SP500_USDT", "Index"),
+    "NAS100": ("NAS100_USDT", "Index"),
+    "US30": ("US30_USDT", "Index"),
+    # --- STOCKS (MEXC format) ---
+    "TSLA": ("TSLA_USDT", "Stock"),
     "NVDA": ("NVDA_USDT", "Stock"),
     "AAPL": ("AAPL_USDT", "Stock"),
     "AMZN": ("AMZN_USDT", "Stock"),
@@ -44,6 +48,13 @@ SYMBOLS = {
     "META": ("META_USDT", "Stock"),
     "COIN": ("COIN_USDT", "Stock"),
     "MSTR": ("MSTR_USDT", "Stock"),
+    "MU": ("MU_USDT", "Stock"),
+    "CSCO": ("CSCO_USDT", "Stock"),
+    "MRVL": ("MRVL_USDT", "Stock"),
+    "UNH": ("UNH_USDT", "Stock"),
+    "HOOD": ("HOOD_USDT", "Stock"),
+    "RDDT": ("RDDT_USDT", "Stock"),
+    "LIN": ("LIN_USDT", "Stock"),
     "AMD": ("AMD_USDT", "Stock"),
 }
 
