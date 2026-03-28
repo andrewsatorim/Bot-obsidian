@@ -174,7 +174,7 @@ def run_backtest_flip(bundles, symbol):
     from app.strategy.breakout_nooi import BreakoutNoOIStrategy
 
     fe = FeatureEngine()
-    strategy = BreakoutNoOIStrategy(symbol=symbol, volume_min=1.5, cooldown_bars=15)
+    strategy = BreakoutNoOIStrategy(symbol=symbol, volume_min=2.0, cooldown_bars=50)
     equity = 10_000.0
     margin_pct, leverage, atr_mult, trail_atr = 0.25, 25, 1.0, 2.5
 
