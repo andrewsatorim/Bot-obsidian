@@ -24,6 +24,7 @@ import ccxt.async_support as ccxt_async
 from app.analytics.feature_engine import FeatureEngine
 from app.config import Settings
 from app.feeds.coinglass_v4 import CoinglassV4
+from app.feeds.news_feed import NewsFeed
 from app.models.enums import Direction, SetupType
 from app.models.market_data_bundle import MarketDataBundle
 from app.models.market_snapshot import MarketSnapshot
@@ -179,6 +180,9 @@ class LiveBot:
         self.settings = Settings()
         self.exchange = OKXExchange(self.settings)
         self.cg = CoinglassV4(self.settings.coinglass_api_key)
+        self.news = NewsFeed(
+            cryptopanic_key=os.getenv("BOT_CRYPTOPANIC_KEY", ""),
+        )
         self.fe = FeatureEngine()
         self.state = PositionState()
         self.risk_mgr = RiskManager(self.settings)
@@ -296,6 +300,16 @@ class LiveBot:
         except Exception as e:
             logger.warning("[%s] Coinglass fetch error: %s", name, e)
 
+        # 5. News sentiment
+        try:
+            news = self.news.get_news_score(name)
+            data["news_score"] = news.get("score", 0)
+            data["fear_greed"] = news.get("fear_greed", 50)
+        except Exception as e:
+            logger.warning("[%s] News fetch error: %s", name, e)
+            data["news_score"] = 0
+            data["fear_greed"] = 50
+
         return data
 
     async def setup_exchange(self):
@@ -391,9 +405,10 @@ class LiveBot:
         if signal is None: return
 
         direction = signal.direction.value
-        logger.info("[%s] Signal: %s strength=%.2f (regime=%s vol=%.2f oi_trend=%.4f funding=%.4f)",
+        logger.info("[%s] Signal: %s strength=%.2f (regime=%s vol=%.2f oi=%.4f fund=%.4f news=%.2f FnG=%d)",
                      name, direction, signal.strength, features.regime_label.value,
-                     features.volume_ratio, features.oi_trend, features.funding)
+                     features.volume_ratio, features.oi_trend, features.funding,
+                     cg_data.get("news_score", 0), cg_data.get("fear_greed", 50))
 
         # 6. COINGLASS FILTERS (OI expanding + Funding + L/S + Liquidation heatmap)
         passed, reasons = self.cg.check_entry_filters(name, direction)
@@ -401,7 +416,13 @@ class LiveBot:
             logger.info("[%s] Signal %s REJECTED by Coinglass: %s", name, direction, ", ".join(reasons))
             return
 
-        # 7. RISK MANAGER (daily loss, max positions, min confidence)
+        # 7. NEWS SENTIMENT FILTER (Fear & Greed + CryptoPanic)
+        skip_news, news_reason = self.news.should_skip_trade(name, direction)
+        if skip_news:
+            logger.info("[%s] Signal %s REJECTED by News: %s", name, direction, news_reason)
+            return
+
+        # 8. RISK MANAGER (daily loss, max positions, min confidence)
         trade = TradeCandidate(
             symbol=symbol, direction=signal.direction,
             setup_type=SetupType.FUNDING_MEAN_REVERSION,
