@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Obsidian</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/*
+ * V5 — OBSIDIAN CLEAN
+ * Inspired by Hers Healthcare App Branding (Behance).
+ *
+ * Design principles:
+ * — Two primary colors + one accent
+ * — Primary: deep charcoal #111318 (background)
+ * — Secondary: soft ivory #f4f1ec (text, cards hint)
+ * — Accent: warm sage #7cb08a (status, positive, CTA)
+ * — Danger only: muted rose #d4687a
+ * — Maximum whitespace, breathing room
+ * — Rounded soft shapes (20px radius)
+ * — Single screen = one story (balance → position → risk → news)
+ * — Translucent card layers
+ * — Inter font, light weights for calm, bold for data
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --bg: #111318;
+    --card: rgba(244, 241, 236, 0.04);
+    --card-border: rgba(244, 241, 236, 0.06);
+    --card-hover: rgba(244, 241, 236, 0.07);
+
+    --ivory: #f4f1ec;
+    --ivory-60: rgba(244, 241, 236, 0.60);
+    --ivory-30: rgba(244, 241, 236, 0.30);
+    --ivory-12: rgba(244, 241, 236, 0.12);
+    --ivory-06: rgba(244, 241, 236, 0.06);
+
+    --sage: #7cb08a;
+    --sage-soft: rgba(124, 176, 138, 0.12);
+    --sage-medium: rgba(124, 176, 138, 0.20);
+
+    --rose: #d4687a;
+    --rose-soft: rgba(212, 104, 122, 0.12);
+
+    --radius: 20px;
+    --radius-sm: 14px;
+    --radius-xs: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--ivory);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    padding: 0 0 32px;
+    overflow-x: hidden;
+}
+
+/* ================================================================
+   HEADER — minimal, just brand + status
+   ================================================================ */
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px 8px;
+}
+
+.brand {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.brand span {
+    color: var(--sage);
+}
+
+.status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ivory-60);
+}
+
+.status-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--sage);
+    box-shadow: 0 0 8px rgba(124, 176, 138, 0.4);
+}
+
+/* ================================================================
+   BALANCE — centered, the hero
+   ================================================================ */
+
+.balance-section {
+    text-align: center;
+    padding: 32px 24px 28px;
+}
+
+.balance-label {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ivory-30);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.balance-value {
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+    margin-bottom: 12px;
+}
+
+.balance-value .cents {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--ivory-30);
+}
+
+.balance-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.balance-change.up {
+    background: var(--sage-soft);
+    color: var(--sage);
+}
+
+.balance-change.down {
+    background: var(--rose-soft);
+    color: var(--rose);
+}
+
+.balance-change .arrow {
+    font-size: 10px;
+}
+
+/* ================================================================
+   POSITION CARD — translucent layer
+   ================================================================ */
+
+.card {
+    margin: 0 16px 12px;
+    padding: 20px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.card-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ivory-30);
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+}
+
+/* Position header */
+.pos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.pos-pair {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pos-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    background: var(--ivory-06);
+    color: var(--ivory-60);
+}
+
+.pos-name {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+
+.pos-strategy {
+    font-size: 11px;
+    color: var(--ivory-30);
+    margin-top: 2px;
+}
+
+.pos-side {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+}
+
+.pos-side.long { background: var(--sage-soft); color: var(--sage); }
+.pos-side.short { background: var(--rose-soft); color: var(--rose); }
+
+/* Position grid */
+.pos-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.pos-grid.four-col {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.pg-item {
+    text-align: center;
+}
+
+.pg-label {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--ivory-30);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.pg-value {
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.3px;
+}
+
+/* Position PnL footer */
+.pos-pnl {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: 14px;
+    border-top: 1px solid var(--ivory-06);
+}
+
+.pos-pnl-val {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.pos-pnl-pct {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.c-sage { color: var(--sage); }
+.c-rose { color: var(--rose); }
+
+/* ================================================================
+   RISK ASSESSMENT — oval gauge + filter columns
+   ================================================================ */
+
+.risk-gauge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.risk-ring {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.risk-ring svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 88px;
+    height: 88px;
+    transform: rotate(-90deg);
+}
+
+.risk-ring .ring-bg {
+    fill: none;
+    stroke: var(--ivory-06);
+    stroke-width: 4;
+}
+
+.risk-ring .ring-fill {
+    fill: none;
+    stroke-width: 4;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.8s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.4s;
+}
+
+.risk-score {
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    z-index: 1;
+}
+
+.risk-score-unit {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ivory-30);
+}
+
+.risk-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ivory-30);
+}
+
+/* Filter columns */
+.filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius-xs);
+    background: var(--ivory-06);
+    transition: background 0.2s;
+}
+
+.filter-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.filter-dot.pass { background: var(--sage); box-shadow: 0 0 6px rgba(124, 176, 138, 0.3); }
+.filter-dot.fail { background: var(--rose); box-shadow: 0 0 6px rgba(212, 104, 122, 0.3); }
+
+.filter-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ivory-60);
+    flex: 1;
+}
+
+.filter-val {
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.filter-val.pass { color: var(--sage); }
+.filter-val.fail { color: var(--rose); }
+
+/* ================================================================
+   NEWS FEED — scrollable
+   ================================================================ */
+
+.news-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    max-height: 260px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.news-list::-webkit-scrollbar { display: none; }
+
+.news-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--ivory-06);
+}
+
+.news-item:last-child { border-bottom: none; }
+
+.news-time {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--ivory-30);
+    min-width: 42px;
+    padding-top: 2px;
+}
+
+.news-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.news-headline {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--ivory);
+    margin-bottom: 3px;
+}
+
+.news-source {
+    font-size: 10px;
+    color: var(--ivory-30);
+}
+
+.news-impact {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+    align-self: flex-start;
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+
+.news-impact.bullish { background: var(--sage-soft); color: var(--sage); }
+.news-impact.bearish { background: var(--rose-soft); color: var(--rose); }
+.news-impact.neutral { background: var(--ivory-06); color: var(--ivory-30); }
+
+/* ================================================================
+   UTILITIES
+   ================================================================ */
+
+.divider {
+    height: 1px;
+    background: var(--ivory-06);
+    margin: 0 24px;
+}
+
+.spacer { height: 8px; }
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<div class="header">
+    <div class="brand">Obsidian<span>.</span></div>
+    <div class="status-pill">
+        <span class="dot"></span>
+        Paper mode
+    </div>
+</div>
+
+<!-- ============ BALANCE ============ -->
+<div class="balance-section">
+    <div class="balance-label">Total Balance</div>
+    <div class="balance-value">$12,847<span class="cents">.32</span></div>
+    <div class="balance-change up">
+        <span class="arrow">&#9650;</span>
+        +$847.32 today
+    </div>
+</div>
+
+<!-- ============ POSITION: BTC ============ -->
+<div class="card">
+    <div class="card-title">Open Position</div>
+    <div class="pos-header">
+        <div class="pos-pair">
+            <div class="pos-icon">BTC</div>
+            <div>
+                <div class="pos-name">BTC / USDT</div>
+                <div class="pos-strategy">Breakout + Flip</div>
+            </div>
+        </div>
+        <span class="pos-side long">Long</span>
+    </div>
+
+    <div class="pos-grid four-col">
+        <div class="pg-item">
+            <div class="pg-label">Entry</div>
+            <div class="pg-value">84,230</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Stop Loss</div>
+            <div class="pg-value c-rose">83,100</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Take Profit</div>
+            <div class="pg-value c-sage">86,500</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Leverage</div>
+            <div class="pg-value">25x</div>
+        </div>
+    </div>
+
+    <div class="pos-grid" style="margin-bottom:0">
+        <div class="pg-item">
+            <div class="pg-label">Size</div>
+            <div class="pg-value">0.038 BTC</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Margin</div>
+            <div class="pg-value">$3,210</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Duration</div>
+            <div class="pg-value">2h 14m</div>
+        </div>
+    </div>
+
+    <div class="pos-pnl" style="margin-top:16px">
+        <span class="pos-pnl-val c-sage">+$412.80</span>
+        <span class="pos-pnl-pct c-sage">+12.8%</span>
+    </div>
+</div>
+
+<!-- ============ POSITION: ETH ============ -->
+<div class="card">
+    <div class="pos-header" style="margin-bottom:16px">
+        <div class="pos-pair">
+            <div class="pos-icon">ETH</div>
+            <div>
+                <div class="pos-name">ETH / USDT</div>
+                <div class="pos-strategy">Breakout + Flip</div>
+            </div>
+        </div>
+        <span class="pos-side short">Short</span>
+    </div>
+
+    <div class="pos-grid four-col">
+        <div class="pg-item">
+            <div class="pg-label">Entry</div>
+            <div class="pg-value">1,920.4</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Stop Loss</div>
+            <div class="pg-value c-rose">1,985.0</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Take Profit</div>
+            <div class="pg-value c-sage">1,820.0</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Leverage</div>
+            <div class="pg-value">25x</div>
+        </div>
+    </div>
+
+    <div class="pos-grid" style="margin-bottom:0">
+        <div class="pg-item">
+            <div class="pg-label">Size</div>
+            <div class="pg-value">1.67 ETH</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Margin</div>
+            <div class="pg-value">$3,210</div>
+        </div>
+        <div class="pg-item">
+            <div class="pg-label">Duration</div>
+            <div class="pg-value">58m</div>
+        </div>
+    </div>
+
+    <div class="pos-pnl" style="margin-top:16px">
+        <span class="pos-pnl-val c-sage">+$215.40</span>
+        <span class="pos-pnl-pct c-sage">+6.7%</span>
+    </div>
+</div>
+
+<!-- ============ RISK ASSESSMENT ============ -->
+<div class="card">
+    <div class="card-title">Risk Assessment</div>
+
+    <div class="risk-gauge">
+        <div class="risk-ring">
+            <svg viewBox="0 0 88 88">
+                <circle class="ring-bg" cx="44" cy="44" r="38"/>
+                <!--
+                    circumference = 2 * pi * 38 = 238.76
+                    score = 24% risk → 76% safe
+                    dashoffset = 238.76 * (1 - 0.76) = 57.3
+                -->
+                <circle class="ring-fill" cx="44" cy="44" r="38"
+                    stroke-dasharray="238.76"
+                    stroke-dashoffset="57.3"
+                    stroke="#7cb08a"/>
+            </svg>
+            <span class="risk-score c-sage">24<span class="risk-score-unit">%</span></span>
+        </div>
+        <span class="risk-label">Low Risk — Safe to Trade</span>
+    </div>
+
+    <div class="filter-grid">
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">OI Expanding</span>
+            <span class="filter-val pass">+2.1%</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">Funding Rate</span>
+            <span class="filter-val pass">0.012%</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">L/S Ratio</span>
+            <span class="filter-val pass">52 / 48</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">Liq Heatmap</span>
+            <span class="filter-val pass">Safe</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">Fear & Greed</span>
+            <span class="filter-val pass">42</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">News Score</span>
+            <span class="filter-val pass">+0.3</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot fail"></div>
+            <span class="filter-name">Daily Loss</span>
+            <span class="filter-val fail">-3.4%</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">Max Positions</span>
+            <span class="filter-val pass">2 / 4</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">Confidence</span>
+            <span class="filter-val pass">87%</span>
+        </div>
+        <div class="filter-item">
+            <div class="filter-dot pass"></div>
+            <span class="filter-name">Drawdown</span>
+            <span class="filter-val pass">3.4%</span>
+        </div>
+    </div>
+</div>
+
+<!-- ============ NEWS SCREEN ============ -->
+<div class="card">
+    <div class="card-title">Market News</div>
+
+    <div class="news-list">
+        <div class="news-item">
+            <span class="news-time">15:02</span>
+            <div class="news-body">
+                <div class="news-headline">BTC breaks above $85,000 — highest level in 3 weeks as ETF inflows surge</div>
+                <div class="news-source">CoinDesk</div>
+            </div>
+            <span class="news-impact bullish">Bullish</span>
+        </div>
+
+        <div class="news-item">
+            <span class="news-time">14:45</span>
+            <div class="news-body">
+                <div class="news-headline">Fed signals potential rate pause in June FOMC — risk assets rally</div>
+                <div class="news-source">Reuters</div>
+            </div>
+            <span class="news-impact bullish">Bullish</span>
+        </div>
+
+        <div class="news-item">
+            <span class="news-time">14:20</span>
+            <div class="news-body">
+                <div class="news-headline">Ethereum Shanghai upgrade delayed again — developers cite testing concerns</div>
+                <div class="news-source">The Block</div>
+            </div>
+            <span class="news-impact bearish">Bearish</span>
+        </div>
+
+        <div class="news-item">
+            <span class="news-time">13:58</span>
+            <div class="news-body">
+                <div class="news-headline">Whale moves 12,000 BTC to Coinbase — potential sell pressure incoming</div>
+                <div class="news-source">Whale Alert</div>
+            </div>
+            <span class="news-impact bearish">Bearish</span>
+        </div>
+
+        <div class="news-item">
+            <span class="news-time">13:30</span>
+            <div class="news-body">
+                <div class="news-headline">SOL ecosystem TVL hits all-time high — DeFi activity doubles in Q1</div>
+                <div class="news-source">DeFi Llama</div>
+            </div>
+            <span class="news-impact bullish">Bullish</span>
+        </div>
+
+        <div class="news-item">
+            <span class="news-time">12:15</span>
+            <div class="news-body">
+                <div class="news-headline">US Treasury yields drop to 4.1% — macro tailwind for crypto</div>
+                <div class="news-source">Bloomberg</div>
+            </div>
+            <span class="news-impact bullish">Bullish</span>
+        </div>
+
+        <div class="news-item">
+            <span class="news-time">11:40</span>
+            <div class="news-body">
+                <div class="news-headline">Binance faces new regulatory scrutiny in EU — MICA compliance deadline looms</div>
+                <div class="news-source">CoinTelegraph</div>
+            </div>
+            <span class="news-impact neutral">Neutral</span>
+        </div>
+
+        <div class="news-item">
+            <span class="news-time">10:00</span>
+            <div class="news-body">
+                <div class="news-headline">OKX launches zero-fee BTC/USDT perpetuals for market makers</div>
+                <div class="news-source">OKX Blog</div>
+            </div>
+            <span class="news-impact neutral">Neutral</span>
+        </div>
+    </div>
+</div>
+
+<div class="spacer"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) {
+    tg.ready();
+    tg.expand();
+    tg.enableClosingConfirmation();
+    // Adapt to Telegram theme if available
+    if (tg.themeParams.bg_color) {
+        document.body.style.background = tg.themeParams.bg_color;
+    }
+}
+</script>
+</body>
+</html>
