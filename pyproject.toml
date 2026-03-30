@@ -3,6 +3,20 @@ name = "bot-obsidian"
 version = "0.1.0"
 description = "Multi-Layer Crypto Decision Engine"
 requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "websockets>=12.0",
+    "ccxt>=4.0",
+    "requests>=2.31",
+    "python-telegram-bot>=21.0",
+]
+
+[project.scripts]
+bot-obsidian = "app.main:main"
+bot-dashboard = "app.api.run:main"
 
 [tool.black]
 line-length = 100
