@@ -8,62 +8,49 @@
 <style>
 /*
  * V6 — OBSIDIAN
- * RonDesignLab glassmorphism depth + graphite/grey palette.
+ * Premium clean. No muddy gradients. Pure layered graphite.
  *
- * Primary 1: deep graphite #1a1a1e (bg)
- * Primary 2: silver-grey glass layers (white @ low opacity)
- * Accent: sage #7cb08a (profit, positive, CTA)
- * Danger: muted rose #c9616e
- *
- * Depth via radial gradient blobs behind frosted glass.
- * Apple-tier dark mode feel, not flat.
+ * Layer 0 (bg):   #0e0e10  — near-black, no color cast
+ * Layer 1 (card):  #1a1a1e — dark graphite
+ * Layer 2 (cell):  #222228 — subtle lift
+ * Accent: sage #7cb08a
+ * Danger: rose #c9616e
  */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --glass: rgba(255,255,255,0.05);
-    --glass-hover: rgba(255,255,255,0.08);
-    --glass-border: rgba(255,255,255,0.10);
-    --glass-border-soft: rgba(255,255,255,0.06);
-    --glass-inner: rgba(255,255,255,0.04);
+    --bg: #0e0e10;
+    --card: #1a1a1e;
+    --card-border: #252529;
+    --cell: #222228;
+    --cell-border: #2a2a30;
 
     --w: #ffffff;
     --w90: rgba(255,255,255,0.88);
-    --w50: rgba(255,255,255,0.48);
+    --w50: rgba(255,255,255,0.45);
     --w30: rgba(255,255,255,0.28);
-    --w12: rgba(255,255,255,0.12);
-    --w06: rgba(255,255,255,0.06);
+    --w12: rgba(255,255,255,0.10);
+    --w06: rgba(255,255,255,0.05);
 
     --sage: #7cb08a;
-    --sage-bright: #92c89e;
-    --sage-bg: rgba(124,176,138,0.14);
-    --sage-border: rgba(124,176,138,0.10);
+    --sage-bright: #8ec49c;
+    --sage-bg: rgba(124,176,138,0.12);
+    --sage-border: rgba(124,176,138,0.08);
 
     --rose: #c9616e;
-    --rose-bg: rgba(201,97,110,0.14);
+    --rose-bg: rgba(201,97,110,0.12);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body {
     font-family: 'Inter', -apple-system, sans-serif;
-    background: #1a1a1e;
+    background: var(--bg);
     color: var(--w);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
-}
-
-.bg {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    background:
-        radial-gradient(ellipse 70% 50% at 25% 15%, rgba(70,75,90,0.35), transparent),
-        radial-gradient(ellipse 60% 45% at 80% 55%, rgba(55,60,75,0.25), transparent),
-        radial-gradient(ellipse 80% 70% at 50% 95%, rgba(45,48,58,0.30), transparent),
-        linear-gradient(165deg, #1a1a1e 0%, #22222a 35%, #1e1e26 65%, #18181c 100%);
 }
 
 .app {
@@ -95,10 +82,8 @@ header {
     gap: 6px;
     padding: 6px 14px;
     border-radius: 50px;
-    background: var(--glass);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--glass-border-soft);
+    background: var(--card);
+    border: 1px solid var(--card-border);
     font-size: 12px;
     font-weight: 400;
     color: var(--w50);
@@ -145,8 +130,6 @@ header {
     padding: 8px 20px;
     border-radius: 50px;
     background: var(--sage-bg);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     border: 1px solid var(--sage-border);
     font-size: 14px;
     font-weight: 500;
@@ -158,13 +141,8 @@ header {
     margin: 0 16px 16px;
     padding: 24px;
     border-radius: 28px;
-    background: var(--glass);
-    backdrop-filter: blur(24px) saturate(1.3);
-    -webkit-backdrop-filter: blur(24px) saturate(1.3);
-    border: 1px solid var(--glass-border-soft);
-    box-shadow:
-        0 8px 40px rgba(0,0,0,0.25),
-        inset 0 1px 0 rgba(255,255,255,0.04);
+    background: var(--card);
+    border: 1px solid var(--card-border);
 }
 
 .card-label {
@@ -193,8 +171,8 @@ header {
 .pos-avatar {
     width: 48px; height: 48px;
     border-radius: 50%;
-    background: var(--glass-hover);
-    border: 1px solid var(--glass-border);
+    background: var(--cell);
+    border: 1px solid var(--cell-border);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -241,7 +219,7 @@ header {
     text-align: center;
     padding: 14px 4px;
     border-radius: 18px;
-    background: var(--w06);
+    background: var(--cell);
 }
 
 .dc-label {
@@ -267,7 +245,7 @@ header {
     align-items: baseline;
     padding-top: 16px;
     margin-top: 4px;
-    border-top: 1px solid var(--w06);
+    border-top: 1px solid var(--cell);
 }
 
 .pnl-val { font-size: 24px; font-weight: 500; letter-spacing: -0.5px; }
@@ -289,7 +267,7 @@ header {
 
 .gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 
-.gauge .track { fill: none; stroke: var(--w06); stroke-width: 5; }
+.gauge .track { fill: none; stroke: var(--cell); stroke-width: 5; }
 
 .gauge .fill {
     fill: none;
@@ -333,7 +311,7 @@ header {
     gap: 10px;
     padding: 12px 14px;
     border-radius: 16px;
-    background: var(--w06);
+    background: var(--cell);
 }
 
 .f-dot {
@@ -375,7 +353,7 @@ header {
     display: flex;
     gap: 14px;
     padding: 14px 0;
-    border-bottom: 1px solid var(--w06);
+    border-bottom: 1px solid var(--cell);
     align-items: flex-start;
 }
 
@@ -416,12 +394,10 @@ header {
 
 .news-tag.bull { background: var(--sage-bg); color: var(--sage-bright); }
 .news-tag.bear { background: var(--rose-bg); color: var(--rose); }
-.news-tag.neut { background: var(--w06); color: var(--w30); }
+.news-tag.neut { background: var(--cell); color: var(--w30); }
 </style>
 </head>
 <body>
-
-<div class="bg"></div>
 
 <div class="app">
 
