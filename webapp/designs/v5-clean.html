@@ -7,42 +7,43 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 /*
- * V5 — OBSIDIAN CLEAN
- * Inspired by Hers Healthcare App Branding (Behance).
+ * V5 — OBSIDIAN CLEAN (refined)
+ * Inspired by Hers Healthcare App Branding.
  *
- * Design principles:
- * — Two primary colors + one accent
- * — Primary: deep charcoal #111318 (background)
- * — Secondary: soft ivory #f4f1ec (text, cards hint)
- * — Accent: warm sage #7cb08a (status, positive, CTA)
- * — Danger only: muted rose #d4687a
- * — Maximum whitespace, breathing room
- * — Rounded soft shapes (20px radius)
- * — Single screen = one story (balance → position → risk → news)
- * — Translucent card layers
- * — Inter font, light weights for calm, bold for data
+ * Colors: graphite bg + Porsche Grey cards + sage accent
+ * — Background: graphite #2c2f33
+ * — Cards: Porsche Chalk Grey #464C47 at 40% opacity
+ * — Text: soft ivory #f4f1ec
+ * — Accent: warm sage #7cb08a
+ * — Danger: muted rose #d4687a
+ *
+ * Typography: Inter, lighter weights throughout
+ * — Labels: 300–400 weight
+ * — Data values: 500 (medium, not bold)
+ * — Headlines: 600 (semibold max)
+ * — Only balance number uses 700
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-    --bg: #111318;
-    --card: rgba(244, 241, 236, 0.04);
-    --card-border: rgba(244, 241, 236, 0.06);
-    --card-hover: rgba(244, 241, 236, 0.07);
+    --bg: #2c2f33;
+    --card: rgba(70, 76, 71, 0.40);
+    --card-border: rgba(70, 76, 71, 0.55);
+    --card-hover: rgba(70, 76, 71, 0.50);
 
     --ivory: #f4f1ec;
     --ivory-60: rgba(244, 241, 236, 0.60);
     --ivory-30: rgba(244, 241, 236, 0.30);
     --ivory-12: rgba(244, 241, 236, 0.12);
-    --ivory-06: rgba(244, 241, 236, 0.06);
+    --ivory-06: rgba(244, 241, 236, 0.08);
 
     --sage: #7cb08a;
-    --sage-soft: rgba(124, 176, 138, 0.12);
-    --sage-medium: rgba(124, 176, 138, 0.20);
+    --sage-soft: rgba(124, 176, 138, 0.14);
+    --sage-medium: rgba(124, 176, 138, 0.22);
 
     --rose: #d4687a;
-    --rose-soft: rgba(212, 104, 122, 0.12);
+    --rose-soft: rgba(212, 104, 122, 0.14);
 
     --radius: 20px;
     --radius-sm: 14px;
@@ -74,8 +75,8 @@ body {
 
 .brand {
     font-size: 18px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
+    font-weight: 500;
+    letter-spacing: -0.3px;
 }
 
 .brand span {
@@ -118,16 +119,16 @@ body {
 }
 
 .balance-value {
-    font-size: 44px;
-    font-weight: 800;
-    letter-spacing: -2px;
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -1.5px;
     line-height: 1;
     margin-bottom: 12px;
 }
 
 .balance-value .cents {
-    font-size: 24px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 400;
     color: var(--ivory-30);
 }
 
@@ -137,8 +138,8 @@ body {
     gap: 6px;
     padding: 6px 16px;
     border-radius: 24px;
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .balance-change.up {
@@ -160,7 +161,7 @@ body {
    ================================================================ */
 
 .card {
-    margin: 0 16px 12px;
+    margin: 0 16px 14px;
     padding: 20px;
     background: var(--card);
     border: 1px solid var(--card-border);
@@ -171,7 +172,7 @@ body {
 
 .card-title {
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 400;
     color: var(--ivory-30);
     letter-spacing: 1.2px;
     text-transform: uppercase;
@@ -199,16 +200,17 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 15px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 500;
     background: var(--ivory-06);
     color: var(--ivory-60);
+    letter-spacing: 0.3px;
 }
 
 .pos-name {
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: -0.3px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
 }
 
 .pos-strategy {
@@ -219,7 +221,7 @@ body {
 
 .pos-side {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     padding: 4px 12px;
     border-radius: 20px;
     letter-spacing: 0.3px;
@@ -253,10 +255,10 @@ body {
 }
 
 .pg-value {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.2px;
 }
 
 /* Position PnL footer */
@@ -269,14 +271,14 @@ body {
 }
 
 .pos-pnl-val {
-    font-size: 22px;
-    font-weight: 800;
+    font-size: 20px;
+    font-weight: 600;
     letter-spacing: -0.5px;
 }
 
 .pos-pnl-pct {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 500;
 }
 
 .c-sage { color: var(--sage); }
@@ -327,21 +329,21 @@ body {
 }
 
 .risk-score {
-    font-size: 28px;
-    font-weight: 800;
-    letter-spacing: -1px;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
     z-index: 1;
 }
 
 .risk-score-unit {
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 400;
     color: var(--ivory-30);
 }
 
 .risk-label {
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 400;
     color: var(--ivory-30);
 }
 
@@ -374,14 +376,14 @@ body {
 
 .filter-name {
     font-size: 12px;
-    font-weight: 500;
+    font-weight: 400;
     color: var(--ivory-60);
     flex: 1;
 }
 
 .filter-val {
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
 }
 
@@ -428,7 +430,7 @@ body {
 
 .news-headline {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 400;
     line-height: 1.4;
     color: var(--ivory);
     margin-bottom: 3px;
@@ -441,8 +443,8 @@ body {
 
 .news-impact {
     font-size: 10px;
-    font-weight: 600;
-    padding: 2px 8px;
+    font-weight: 500;
+    padding: 3px 8px;
     border-radius: 10px;
     align-self: flex-start;
     margin-top: 4px;
