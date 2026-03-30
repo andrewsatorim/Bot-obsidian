@@ -21,10 +21,10 @@
 
 :root {
     --bg: #0e0e10;
-    --card: rgba(255,255,255,0.07);
-    --card-border: rgba(255,255,255,0.12);
-    --cell: rgba(255,255,255,0.06);
-    --cell-border: rgba(255,255,255,0.09);
+    --card: rgba(255,255,255,0.13);
+    --card-border: rgba(255,255,255,0.18);
+    --cell: rgba(255,255,255,0.08);
+    --cell-border: rgba(255,255,255,0.12);
 
     --w: #ffffff;
     --w90: rgba(255,255,255,0.88);
@@ -58,9 +58,9 @@ body {
     inset: 0;
     z-index: 0;
     background:
-        radial-gradient(ellipse 60% 45% at 20% 10%, rgba(180,185,200,0.06), transparent),
-        radial-gradient(ellipse 50% 40% at 80% 50%, rgba(160,170,190,0.04), transparent),
-        radial-gradient(ellipse 70% 50% at 40% 90%, rgba(140,145,165,0.05), transparent),
+        radial-gradient(ellipse 60% 45% at 20% 10%, rgba(200,210,230,0.08), transparent),
+        radial-gradient(ellipse 50% 40% at 80% 50%, rgba(180,190,210,0.06), transparent),
+        radial-gradient(ellipse 70% 50% at 40% 90%, rgba(160,170,195,0.07), transparent),
         var(--bg);
 }
 
@@ -159,8 +159,9 @@ header {
     -webkit-backdrop-filter: blur(40px) saturate(1.2);
     border: 1px solid var(--card-border);
     box-shadow:
-        0 8px 32px rgba(0,0,0,0.35),
-        inset 0 1px 0 rgba(255,255,255,0.06);
+        0 8px 32px rgba(0,0,0,0.40),
+        0 0 0 0.5px rgba(255,255,255,0.15),
+        inset 0 1px 0 rgba(255,255,255,0.10);
 }
 
 .card-label {
