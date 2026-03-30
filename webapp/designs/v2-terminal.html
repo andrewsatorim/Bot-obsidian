@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bot-Obsidian v2 — Terminal</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/*
+ * VARIANT 2: TERMINAL / HACKER
+ * Monospace font, phosphor green, scanlines, CRT feel.
+ * Raw data-dense layout, everything visible at once.
+ */
+
+:root {
+    --bg: #0c0c0c;
+    --bg2: #111111;
+    --bg3: #1a1a1a;
+    --green: #00ff88;
+    --green-dim: #00cc6a;
+    --green-dark: rgba(0, 255, 136, 0.08);
+    --red: #ff3355;
+    --red-dark: rgba(255, 51, 85, 0.08);
+    --yellow: #ffcc00;
+    --cyan: #00ccff;
+    --text: #cccccc;
+    --text-dim: #666666;
+    --border: #222222;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Mono', 'Consolas', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: var(--mono);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.5;
+    min-height: 100vh;
+    position: relative;
+}
+
+/* CRT scanline overlay */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Top bar */
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+}
+
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.topbar-logo {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 13px;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+}
+
+.topbar-ver {
+    color: var(--text-dim);
+}
+
+.topbar-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.blink-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+.mode-tag {
+    padding: 1px 6px;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+/* Main equity block */
+.equity-block {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+}
+
+.eq-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.eq-label {
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.eq-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--green);
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+    letter-spacing: -1px;
+}
+
+.eq-pnl {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.eq-pnl.up { color: var(--green); }
+.eq-pnl.down { color: var(--red); }
+
+.eq-meta {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.eq-meta strong { color: var(--text); }
+
+/* Drawdown gauge */
+.dd-gauge {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.dd-gauge-label { color: var(--text-dim); min-width: 60px; }
+
+.dd-gauge-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    position: relative;
+}
+
+.dd-gauge-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: var(--green);
+    transition: width 0.5s;
+}
+
+.dd-gauge-fill.warn { background: var(--yellow); }
+.dd-gauge-fill.crit { background: var(--red); }
+
+.dd-gauge-marks {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 1px;
+    background: var(--red);
+}
+
+.dd-gauge-val { min-width: 60px; text-align: right; }
+
+/* ASCII table positions */
+.section {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.section-head {
+    color: var(--cyan);
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.ascii-table {
+    width: 100%;
+    font-size: 11px;
+    border-collapse: collapse;
+}
+
+.ascii-table th {
+    text-align: left;
+    color: var(--text-dim);
+    font-weight: 400;
+    padding: 3px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.ascii-table td {
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+}
+
+.ascii-table tr:last-child td {
+    border-bottom: none;
+}
+
+.tag-long {
+    color: var(--green);
+    font-weight: 700;
+}
+
+.tag-short {
+    color: var(--red);
+    font-weight: 700;
+}
+
+.pnl-up { color: var(--green); font-weight: 700; }
+.pnl-down { color: var(--red); font-weight: 700; }
+
+/* Market tickers */
+.tickers {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--border);
+}
+
+.ticker {
+    padding: 10px 12px;
+    background: var(--bg);
+}
+
+.ticker-sym {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.ticker-price {
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.ticker-price.up { color: var(--green); }
+.ticker-price.down { color: var(--red); }
+
+.ticker-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.ticker-meta span:last-child { color: var(--text); }
+
+/* Signal log */
+.log-entry {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    display: flex;
+    gap: 8px;
+}
+
+.log-entry:last-child { border-bottom: none; }
+
+.log-time {
+    color: var(--text-dim);
+    min-width: 52px;
+}
+
+.log-level {
+    min-width: 40px;
+    font-weight: 700;
+}
+
+.log-level.sig { color: var(--cyan); }
+.log-level.trd { color: var(--green); }
+.log-level.rej { color: var(--yellow); }
+.log-level.err { color: var(--red); }
+
+.log-msg {
+    flex: 1;
+    word-break: break-all;
+}
+
+/* Filter badges */
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.f-pass {
+    font-size: 9px;
+    padding: 1px 4px;
+    border: 1px solid var(--green-dim);
+    color: var(--green-dim);
+}
+
+.f-fail {
+    font-size: 9px;
+    padding: 1px 4px;
+    border: 1px solid var(--red);
+    color: var(--red);
+}
+
+/* Bottom status bar */
+.statusbar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--bg2);
+    border-top: 1px solid var(--border);
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.statusbar .ws-status { color: var(--green); }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+    <div class="topbar-left">
+        <span class="topbar-logo">[OBSIDIAN]</span>
+        <span class="topbar-ver">v3.0</span>
+    </div>
+    <div class="topbar-status">
+        <div class="blink-dot"></div>
+        <span class="mode-tag">PAPER</span>
+    </div>
+</div>
+
+<!-- Equity -->
+<div class="equity-block">
+    <div class="eq-row">
+        <div>
+            <div class="eq-label">equity</div>
+            <div class="eq-value">$12,847.32</div>
+        </div>
+        <div style="text-align: right">
+            <div class="eq-label">daily pnl</div>
+            <div class="eq-pnl up">+$847.32</div>
+        </div>
+    </div>
+    <div class="eq-meta">
+        <span>peak <strong>$13,100</strong></span>
+        <span>trades <strong>47</strong></span>
+        <span>win <strong>68%</strong></span>
+        <span>sharpe <strong>2.1</strong></span>
+    </div>
+</div>
+
+<!-- Drawdown gauge -->
+<div class="dd-gauge">
+    <span class="dd-gauge-label">DRAWDOWN</span>
+    <div class="dd-gauge-track">
+        <div class="dd-gauge-fill" style="width:23%"></div>
+        <div class="dd-gauge-marks" style="left:100%"></div>
+    </div>
+    <span class="dd-gauge-val">3.4 / 15%</span>
+</div>
+
+<!-- Positions table -->
+<div class="section">
+    <div class="section-head">&#9654; Positions (3/4)</div>
+    <table class="ascii-table">
+        <tr>
+            <th>Pair</th>
+            <th>Side</th>
+            <th>Entry</th>
+            <th>SL</th>
+            <th>PnL</th>
+        </tr>
+        <tr>
+            <td>BTC</td>
+            <td class="tag-long">LONG</td>
+            <td>84,230</td>
+            <td>83,100</td>
+            <td class="pnl-up">+$412.80</td>
+        </tr>
+        <tr>
+            <td>ETH</td>
+            <td class="tag-short">SHRT</td>
+            <td>1,920.4</td>
+            <td>1,985.0</td>
+            <td class="pnl-up">+$215.40</td>
+        </tr>
+        <tr>
+            <td>SOL</td>
+            <td class="tag-long">LONG</td>
+            <td>142.30</td>
+            <td>138.80</td>
+            <td class="pnl-down">-$78.30</td>
+        </tr>
+    </table>
+</div>
+
+<!-- Market tickers -->
+<div class="section" style="padding: 0;">
+    <div style="padding: 8px 12px 0;"><div class="section-head">&#9654; Market</div></div>
+    <div class="tickers">
+        <div class="ticker">
+            <div class="ticker-sym">BTC</div>
+            <div class="ticker-price up">85,342.10</div>
+            <div class="ticker-meta">
+                <span>OI +2.1%</span>
+                <span>FR 0.012%</span>
+            </div>
+            <div class="ticker-meta">
+                <span>Regime</span>
+                <span style="color:var(--green)">TREND_UP</span>
+            </div>
+        </div>
+        <div class="ticker">
+            <div class="ticker-sym">ETH</div>
+            <div class="ticker-price down">1,892.44</div>
+            <div class="ticker-meta">
+                <span>OI -0.5%</span>
+                <span>FR 0.008%</span>
+            </div>
+            <div class="ticker-meta">
+                <span>Regime</span>
+                <span style="color:var(--red)">TREND_DN</span>
+            </div>
+        </div>
+        <div class="ticker">
+            <div class="ticker-sym">SOL</div>
+            <div class="ticker-price up">143.87</div>
+            <div class="ticker-meta">
+                <span>OI +1.4%</span>
+                <span>FR 0.015%</span>
+            </div>
+            <div class="ticker-meta">
+                <span>Regime</span>
+                <span style="color:var(--yellow)">VOLATILE</span>
+            </div>
+        </div>
+        <div class="ticker">
+            <div class="ticker-sym">ADA</div>
+            <div class="ticker-price" style="color:var(--text-dim)">0.6234</div>
+            <div class="ticker-meta">
+                <span>OI -0.1%</span>
+                <span>FR 0.003%</span>
+            </div>
+            <div class="ticker-meta">
+                <span>Regime</span>
+                <span>RANGE</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Signal log -->
+<div class="section">
+    <div class="section-head">&#9654; Signal Log</div>
+
+    <div class="log-entry">
+        <span class="log-time">14:32</span>
+        <span class="log-level trd">OPEN</span>
+        <span class="log-msg">BTC LONG @ 84,230 | str=0.87 regime=TREND_UP vol=2.3x oi=+2.1%
+            <div class="filters">
+                <span class="f-pass">OI_EXPAND</span>
+                <span class="f-pass">FUNDING_OK</span>
+                <span class="f-pass">LS_OK</span>
+                <span class="f-pass">LIQ_SAFE</span>
+            </div>
+        </span>
+    </div>
+
+    <div class="log-entry">
+        <span class="log-time">14:00</span>
+        <span class="log-level rej">SKIP</span>
+        <span class="log-msg">ADA LONG rejected
+            <div class="filters">
+                <span class="f-pass">OI_EXPAND</span>
+                <span class="f-fail">FUND_HIGH</span>
+                <span class="f-fail">LS_CROWD</span>
+                <span class="f-pass">LIQ_SAFE</span>
+            </div>
+        </span>
+    </div>
+
+    <div class="log-entry">
+        <span class="log-time">13:30</span>
+        <span class="log-level trd">FLIP</span>
+        <span class="log-msg">ETH closed LONG +$180.20 &#8594; opened SHORT @ 1,920.4</span>
+    </div>
+
+    <div class="log-entry">
+        <span class="log-time">13:00</span>
+        <span class="log-level sig">SCAN</span>
+        <span class="log-msg">4 symbols scanned, 2 signals, 1 rejected. FnG=42 (Fear)</span>
+    </div>
+
+    <div class="log-entry">
+        <span class="log-time">12:30</span>
+        <span class="log-level trd">STOP</span>
+        <span class="log-msg">SOL trailing stop hit @ 139.50, PnL -$23.10</span>
+    </div>
+</div>
+
+<!-- Status bar -->
+<div class="statusbar">
+    <span>uptime 4h23m | cycle 14:32 UTC</span>
+    <span class="ws-status">WS:OK</span>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+</script>
+</body>
+</html>

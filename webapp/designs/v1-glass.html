@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bot-Obsidian v1 — Glass</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/*
+ * VARIANT 1: GLASSMORPHISM + AURORA
+ * Frosted glass cards over animated gradient background.
+ * Premium feel, soft neon accents, depth via blur layers.
+ */
+
+:root {
+    --bg: #0a0a1a;
+    --glass: rgba(255, 255, 255, 0.04);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-hover: rgba(255, 255, 255, 0.07);
+    --text: #eef0f6;
+    --text-dim: #6b7280;
+    --accent: #8b5cf6;
+    --accent-glow: rgba(139, 92, 246, 0.3);
+    --green: #34d399;
+    --green-glow: rgba(52, 211, 153, 0.2);
+    --red: #f87171;
+    --red-glow: rgba(248, 113, 113, 0.2);
+    --yellow: #fbbf24;
+    --radius: 16px;
+    --radius-sm: 10px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* Aurora background */
+.aurora {
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse at 20% 50%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(52, 211, 153, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 80%, rgba(59, 130, 246, 0.06) 0%, transparent 50%);
+    animation: auroraShift 20s ease-in-out infinite alternate;
+}
+
+@keyframes auroraShift {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    100% { transform: translate(-5%, 3%) rotate(3deg); }
+}
+
+.app { position: relative; z-index: 1; padding-bottom: 24px; }
+
+/* Header */
+header {
+    padding: 16px 20px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #6366f1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 4px 16px var(--accent-glow);
+}
+
+.logo-text h1 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+
+.logo-text .tagline {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 1px;
+}
+
+.status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.status-pill .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Main equity card */
+.equity-hero {
+    margin: 8px 16px 16px;
+    padding: 24px;
+    border-radius: var(--radius);
+    background: var(--glass);
+    backdrop-filter: blur(24px);
+    border: 1px solid var(--glass-border);
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.equity-hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139,92,246,0.5), transparent);
+}
+
+.equity-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+
+.equity-value {
+    font-size: 38px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    background: linear-gradient(135deg, #fff 0%, #c4b5fd 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.equity-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.equity-change.up {
+    background: var(--green-glow);
+    color: var(--green);
+}
+
+.equity-change.down {
+    background: var(--red-glow);
+    color: var(--red);
+}
+
+.equity-meta {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.equity-meta span strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+/* Stats row */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 0 16px 16px;
+}
+
+.stat-card {
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    text-align: center;
+}
+
+.stat-card .stat-icon {
+    font-size: 20px;
+    margin-bottom: 6px;
+}
+
+.stat-card .stat-val {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.stat-card .stat-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 3px;
+}
+
+/* Drawdown bar */
+.dd-section {
+    margin: 0 16px 16px;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+}
+
+.dd-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.dd-header span:first-child { color: var(--text-dim); }
+.dd-header span:last-child { font-weight: 600; }
+
+.dd-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+}
+
+.dd-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--green), var(--yellow));
+    width: 23%;
+    transition: width 0.5s;
+}
+
+.dd-fill.warning { background: linear-gradient(90deg, var(--yellow), var(--red)); }
+
+/* Position cards */
+.section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin: 0 20px 10px;
+}
+
+.positions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 16px 16px;
+}
+
+.pos-card {
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--glass);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    transition: background 0.2s;
+}
+
+.pos-card:active { background: var(--glass-hover); }
+
+.pos-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.pos-pair {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pos-coin-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    background: rgba(255,255,255,0.08);
+}
+
+.pos-coin-icon.btc { background: linear-gradient(135deg, #f7931a20, #f7931a40); color: #f7931a; }
+.pos-coin-icon.eth { background: linear-gradient(135deg, #627eea20, #627eea40); color: #627eea; }
+.pos-coin-icon.sol { background: linear-gradient(135deg, #9945ff20, #9945ff40); color: #9945ff; }
+
+.pos-name {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.pos-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pos-badge.long { background: var(--green-glow); color: var(--green); }
+.pos-badge.short { background: var(--red-glow); color: var(--red); }
+
+.pos-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.pos-metric {
+    text-align: center;
+}
+
+.pos-metric .pm-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.pos-metric .pm-value {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pos-pnl-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.pos-pnl-val {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.pos-pnl-pct {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.text-green { color: var(--green); }
+.text-red { color: var(--red); }
+
+/* Alerts */
+.alerts {
+    margin: 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--glass);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    font-size: 12px;
+}
+
+.alert-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.alert-body .alert-time {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.alert-body .alert-text {
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+/* Nav bar */
+nav {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-around;
+    padding: 10px 16px 14px;
+    background: rgba(10, 10, 26, 0.85);
+    backdrop-filter: blur(24px);
+    border-top: 1px solid var(--glass-border);
+    z-index: 100;
+    margin-top: 16px;
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 4px 12px;
+}
+
+.nav-item .nav-icon { font-size: 20px; }
+
+.nav-item.active {
+    color: var(--accent);
+}
+
+.nav-item.active .nav-icon {
+    filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+</style>
+</head>
+<body>
+<div class="aurora"></div>
+<div class="app">
+
+    <!-- Header -->
+    <header>
+        <div class="logo">
+            <div class="logo-icon">O</div>
+            <div class="logo-text">
+                <h1>Bot-Obsidian</h1>
+                <div class="tagline">Breakout + Flip Engine</div>
+            </div>
+        </div>
+        <div class="status-pill">
+            <span class="dot"></span>
+            PAPER
+        </div>
+    </header>
+
+    <!-- Equity hero -->
+    <div class="equity-hero">
+        <div class="equity-label">Total Equity</div>
+        <div class="equity-value">$12,847.32</div>
+        <div class="equity-change up">+$847.32 today</div>
+        <div class="equity-meta">
+            <span>Peak <strong>$13,100</strong></span>
+            <span>Start <strong>$10,000</strong></span>
+            <span>Win rate <strong>68%</strong></span>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-val text-green">+$847</div>
+            <div class="stat-label">Daily PnL</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val">3</div>
+            <div class="stat-label">Positions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val">12</div>
+            <div class="stat-label">Signals</div>
+        </div>
+    </div>
+
+    <!-- Drawdown -->
+    <div class="dd-section">
+        <div class="dd-header">
+            <span>Drawdown</span>
+            <span>3.4% / 15%</span>
+        </div>
+        <div class="dd-track">
+            <div class="dd-fill" style="width: 23%"></div>
+        </div>
+    </div>
+
+    <!-- Positions -->
+    <div class="section-label">Active Positions</div>
+    <div class="positions">
+        <!-- BTC LONG -->
+        <div class="pos-card">
+            <div class="pos-top">
+                <div class="pos-pair">
+                    <div class="pos-coin-icon btc">B</div>
+                    <span class="pos-name">BTC/USDT</span>
+                </div>
+                <span class="pos-badge long">Long 25x</span>
+            </div>
+            <div class="pos-grid">
+                <div class="pos-metric">
+                    <div class="pm-label">Entry</div>
+                    <div class="pm-value">84,230</div>
+                </div>
+                <div class="pos-metric">
+                    <div class="pm-label">Stop Loss</div>
+                    <div class="pm-value">83,100</div>
+                </div>
+                <div class="pos-metric">
+                    <div class="pm-label">Size</div>
+                    <div class="pm-value">0.038</div>
+                </div>
+            </div>
+            <div class="pos-pnl-row">
+                <span class="pos-pnl-val text-green">+$412.80</span>
+                <span class="pos-pnl-pct text-green">+12.8%</span>
+            </div>
+        </div>
+
+        <!-- ETH SHORT -->
+        <div class="pos-card">
+            <div class="pos-top">
+                <div class="pos-pair">
+                    <div class="pos-coin-icon eth">E</div>
+                    <span class="pos-name">ETH/USDT</span>
+                </div>
+                <span class="pos-badge short">Short 25x</span>
+            </div>
+            <div class="pos-grid">
+                <div class="pos-metric">
+                    <div class="pm-label">Entry</div>
+                    <div class="pm-value">1,920.4</div>
+                </div>
+                <div class="pos-metric">
+                    <div class="pm-label">Stop Loss</div>
+                    <div class="pm-value">1,985.0</div>
+                </div>
+                <div class="pos-metric">
+                    <div class="pm-label">Size</div>
+                    <div class="pm-value">1.67</div>
+                </div>
+            </div>
+            <div class="pos-pnl-row">
+                <span class="pos-pnl-val text-green">+$215.40</span>
+                <span class="pos-pnl-pct text-green">+6.7%</span>
+            </div>
+        </div>
+
+        <!-- SOL LONG -->
+        <div class="pos-card">
+            <div class="pos-top">
+                <div class="pos-pair">
+                    <div class="pos-coin-icon sol">S</div>
+                    <span class="pos-name">SOL/USDT</span>
+                </div>
+                <span class="pos-badge long">Long 25x</span>
+            </div>
+            <div class="pos-grid">
+                <div class="pos-metric">
+                    <div class="pm-label">Entry</div>
+                    <div class="pm-value">142.30</div>
+                </div>
+                <div class="pos-metric">
+                    <div class="pm-label">Stop Loss</div>
+                    <div class="pm-value">138.80</div>
+                </div>
+                <div class="pos-metric">
+                    <div class="pm-label">Size</div>
+                    <div class="pm-value">22.5</div>
+                </div>
+            </div>
+            <div class="pos-pnl-row">
+                <span class="pos-pnl-val text-red">-$78.30</span>
+                <span class="pos-pnl-pct text-red">-2.4%</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts -->
+    <div class="section-label">Recent Activity</div>
+    <div class="alerts">
+        <div class="alert">
+            <span class="alert-icon">&#9889;</span>
+            <div class="alert-body">
+                <div class="alert-time">14:32 UTC</div>
+                <div class="alert-text"><strong>BTC</strong> Breakout signal LONG &mdash; strength 0.87, OI expanding +2.1%</div>
+            </div>
+        </div>
+        <div class="alert">
+            <span class="alert-icon">&#9888;&#65039;</span>
+            <div class="alert-body">
+                <div class="alert-time">14:00 UTC</div>
+                <div class="alert-text"><strong>ADA</strong> Signal rejected &mdash; Funding extreme (0.08%), L/S crowded LONG</div>
+            </div>
+        </div>
+        <div class="alert">
+            <span class="alert-icon">&#10004;&#65039;</span>
+            <div class="alert-body">
+                <div class="alert-time">13:30 UTC</div>
+                <div class="alert-text"><strong>ETH</strong> FLIP &mdash; closed LONG +$180, opened SHORT @ 1,920.4</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom nav -->
+    <nav>
+        <button class="nav-item active">
+            <span class="nav-icon">&#9632;</span>
+            Dashboard
+        </button>
+        <button class="nav-item">
+            <span class="nav-icon">&#9646;</span>
+            Positions
+        </button>
+        <button class="nav-item">
+            <span class="nav-icon">&#9650;</span>
+            Signals
+        </button>
+        <button class="nav-item">
+            <span class="nav-icon">&#9881;</span>
+            Settings
+        </button>
+    </nav>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+</script>
+</body>
+</html>

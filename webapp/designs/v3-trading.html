@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bot-Obsidian v3 — Trading Pro</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/*
+ * VARIANT 3: PROFESSIONAL TRADING TERMINAL
+ * Bloomberg/Binance inspired. Dense, structured, no-nonsense.
+ * Accent color = electric blue. Data-first, action-second.
+ */
+
+:root {
+    --bg: #0b0e11;
+    --bg-panel: #12161c;
+    --bg-row: #161a21;
+    --bg-hover: #1b2028;
+    --text: #eaecef;
+    --text2: #848e9c;
+    --text3: #5e6673;
+    --blue: #2962ff;
+    --blue-bg: rgba(41, 98, 255, 0.1);
+    --green: #0ecb81;
+    --green-bg: rgba(14, 203, 129, 0.1);
+    --red: #f6465d;
+    --red-bg: rgba(246, 70, 93, 0.1);
+    --yellow: #f0b90b;
+    --border: #1e2329;
+    --radius: 8px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    min-height: 100vh;
+}
+
+/* Top nav */
+.topnav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+}
+
+.topnav-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    color: white;
+}
+
+.brand-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+
+.topnav-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--green);
+    font-weight: 600;
+}
+
+.live-indicator .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: glow 2s infinite;
+}
+
+@keyframes glow {
+    0%, 100% { box-shadow: 0 0 4px var(--green); }
+    50% { box-shadow: 0 0 12px var(--green); }
+}
+
+.mode-chip {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--yellow);
+    color: #0b0e11;
+    text-transform: uppercase;
+}
+
+.mode-chip.live-mode { background: var(--red); color: white; }
+
+/* Tabs */
+.tabs {
+    display: flex;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text2);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    text-align: center;
+}
+
+.tab-btn.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+}
+
+/* PnL strip */
+.pnl-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+}
+
+.pnl-cell {
+    padding: 12px 10px;
+    text-align: center;
+    border-right: 1px solid var(--border);
+}
+
+.pnl-cell:last-child { border-right: none; }
+
+.pnl-cell .pc-label {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 4px;
+}
+
+.pnl-cell .pc-value {
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.pnl-cell .pc-sub {
+    font-size: 10px;
+    color: var(--text2);
+    margin-top: 2px;
+}
+
+/* Drawdown bar */
+.dd-strip {
+    display: flex;
+    align-items: center;
+    padding: 8px 14px;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+}
+
+.dd-label { color: var(--text3); min-width: 70px; }
+
+.dd-bar-outer {
+    flex: 1;
+    height: 6px;
+    background: var(--bg-row);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+}
+
+.dd-bar-inner {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s, background 0.3s;
+}
+
+.dd-bar-inner.safe { background: var(--green); }
+.dd-bar-inner.caution { background: var(--yellow); }
+.dd-bar-inner.danger { background: var(--red); }
+
+.dd-limit {
+    position: absolute;
+    top: -2px;
+    height: 10px;
+    width: 2px;
+    background: var(--red);
+    border-radius: 1px;
+}
+
+.dd-val {
+    min-width: 65px;
+    text-align: right;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Positions */
+.panel {
+    padding: 0 14px;
+}
+
+.panel-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0 8px;
+}
+
+.panel-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.panel-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--blue-bg);
+    color: var(--blue);
+}
+
+.pos-item {
+    background: var(--bg-panel);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.pos-item-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: var(--bg-row);
+}
+
+.pos-item-pair {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.coin-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.coin-dot.btc { background: #f7931a; }
+.coin-dot.eth { background: #627eea; }
+.coin-dot.sol { background: #9945ff; }
+
+.pos-item-name {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.side-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.side-tag.long { background: var(--green-bg); color: var(--green); }
+.side-tag.short { background: var(--red-bg); color: var(--red); }
+
+.pos-item-body {
+    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+}
+
+.pi-field {
+    text-align: center;
+}
+
+.pi-field .pf-label {
+    font-size: 9px;
+    color: var(--text3);
+    text-transform: uppercase;
+}
+
+.pi-field .pf-value {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.pos-item-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-row);
+}
+
+.pnl-amount {
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.pnl-percent {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.val-green { color: var(--green); }
+.val-red { color: var(--red); }
+
+/* Market overview */
+.market-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    margin: 0 -14px;
+}
+
+.mk-cell {
+    background: var(--bg);
+    padding: 10px 8px;
+    text-align: center;
+}
+
+.mk-sym {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.mk-price {
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.mk-chg {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+.mk-regime {
+    font-size: 9px;
+    color: var(--text3);
+    margin-top: 3px;
+    text-transform: uppercase;
+}
+
+/* Signals */
+.sig-item {
+    background: var(--bg-panel);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+}
+
+.sig-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.sig-pair { font-weight: 700; font-size: 13px; }
+
+.sig-time { font-size: 10px; color: var(--text3); }
+
+.sig-bar-outer {
+    height: 3px;
+    background: var(--bg-row);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.sig-bar-inner {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--blue);
+}
+
+.sig-bottom {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text2);
+}
+
+.sig-filters {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.sf-tag {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.sf-tag.ok { background: var(--green-bg); color: var(--green); }
+.sf-tag.no { background: var(--red-bg); color: var(--red); }
+
+/* Alerts */
+.alert-item {
+    display: flex;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.alert-item:last-child { border-bottom: none; }
+
+.al-indicator {
+    width: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.al-indicator.info { background: var(--blue); }
+.al-indicator.trade { background: var(--green); }
+.al-indicator.warn { background: var(--yellow); }
+.al-indicator.error { background: var(--red); }
+
+.al-body { flex: 1; }
+.al-time { font-size: 10px; color: var(--text3); }
+.al-msg { margin-top: 2px; line-height: 1.3; }
+
+/* Empty */
+.empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text3);
+    font-size: 12px;
+}
+</style>
+</head>
+<body>
+
+<!-- Top nav -->
+<div class="topnav">
+    <div class="topnav-brand">
+        <div class="brand-mark">O</div>
+        <span class="brand-name">Bot-Obsidian</span>
+    </div>
+    <div class="topnav-right">
+        <div class="live-indicator">
+            <span class="dot"></span>
+            Online
+        </div>
+        <span class="mode-chip">Paper</span>
+    </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+    <button class="tab-btn active">Overview</button>
+    <button class="tab-btn">Positions</button>
+    <button class="tab-btn">Signals</button>
+    <button class="tab-btn">Settings</button>
+</div>
+
+<!-- PnL strip -->
+<div class="pnl-strip">
+    <div class="pnl-cell">
+        <div class="pc-label">Equity</div>
+        <div class="pc-value">$12,847</div>
+        <div class="pc-sub">Peak $13,100</div>
+    </div>
+    <div class="pnl-cell">
+        <div class="pc-label">Daily P&L</div>
+        <div class="pc-value val-green">+$847</div>
+        <div class="pc-sub val-green">+7.05%</div>
+    </div>
+    <div class="pnl-cell">
+        <div class="pc-label">Positions</div>
+        <div class="pc-value">3 / 4</div>
+        <div class="pc-sub">$9,630 margin</div>
+    </div>
+    <div class="pnl-cell">
+        <div class="pc-label">Win Rate</div>
+        <div class="pc-value">68%</div>
+        <div class="pc-sub">47 trades</div>
+    </div>
+</div>
+
+<!-- Drawdown -->
+<div class="dd-strip">
+    <span class="dd-label">Drawdown</span>
+    <div class="dd-bar-outer">
+        <div class="dd-bar-inner safe" style="width:23%"></div>
+        <div class="dd-limit" style="left:100%"></div>
+    </div>
+    <span class="dd-val">3.4% / 15%</span>
+</div>
+
+<!-- Market strip -->
+<div class="panel">
+    <div class="panel-head">
+        <span class="panel-title">Market</span>
+        <span class="panel-badge">Live</span>
+    </div>
+</div>
+<div class="market-strip">
+    <div class="mk-cell">
+        <div class="mk-sym">BTC</div>
+        <div class="mk-price val-green">85,342</div>
+        <div class="mk-chg val-green">+2.4%</div>
+        <div class="mk-regime" style="color:var(--green)">trend up</div>
+    </div>
+    <div class="mk-cell">
+        <div class="mk-sym">ETH</div>
+        <div class="mk-price val-red">1,892</div>
+        <div class="mk-chg val-red">-1.2%</div>
+        <div class="mk-regime" style="color:var(--red)">trend dn</div>
+    </div>
+    <div class="mk-cell">
+        <div class="mk-sym">SOL</div>
+        <div class="mk-price val-green">143.87</div>
+        <div class="mk-chg val-green">+1.8%</div>
+        <div class="mk-regime" style="color:var(--yellow)">volatile</div>
+    </div>
+    <div class="mk-cell">
+        <div class="mk-sym">ADA</div>
+        <div class="mk-price" style="color:var(--text2)">0.6234</div>
+        <div class="mk-chg" style="color:var(--text2)">+0.1%</div>
+        <div class="mk-regime">range</div>
+    </div>
+</div>
+
+<!-- Positions -->
+<div class="panel">
+    <div class="panel-head">
+        <span class="panel-title">Active Positions</span>
+        <span class="panel-badge">3 Open</span>
+    </div>
+
+    <div class="pos-item">
+        <div class="pos-item-head">
+            <div class="pos-item-pair">
+                <div class="coin-dot btc"></div>
+                <span class="pos-item-name">BTC/USDT</span>
+            </div>
+            <span class="side-tag long">LONG 25x</span>
+        </div>
+        <div class="pos-item-body">
+            <div class="pi-field"><div class="pf-label">Entry</div><div class="pf-value">84,230</div></div>
+            <div class="pi-field"><div class="pf-label">Mark</div><div class="pf-value val-green">85,342</div></div>
+            <div class="pi-field"><div class="pf-label">Stop</div><div class="pf-value">83,100</div></div>
+            <div class="pi-field"><div class="pf-label">Size</div><div class="pf-value">0.038</div></div>
+        </div>
+        <div class="pos-item-footer">
+            <span class="pnl-amount val-green">+$412.80</span>
+            <span class="pnl-percent val-green">+12.8%</span>
+        </div>
+    </div>
+
+    <div class="pos-item">
+        <div class="pos-item-head">
+            <div class="pos-item-pair">
+                <div class="coin-dot eth"></div>
+                <span class="pos-item-name">ETH/USDT</span>
+            </div>
+            <span class="side-tag short">SHORT 25x</span>
+        </div>
+        <div class="pos-item-body">
+            <div class="pi-field"><div class="pf-label">Entry</div><div class="pf-value">1,920.4</div></div>
+            <div class="pi-field"><div class="pf-label">Mark</div><div class="pf-value val-green">1,892.4</div></div>
+            <div class="pi-field"><div class="pf-label">Stop</div><div class="pf-value">1,985.0</div></div>
+            <div class="pi-field"><div class="pf-label">Size</div><div class="pf-value">1.670</div></div>
+        </div>
+        <div class="pos-item-footer">
+            <span class="pnl-amount val-green">+$215.40</span>
+            <span class="pnl-percent val-green">+6.7%</span>
+        </div>
+    </div>
+
+    <div class="pos-item">
+        <div class="pos-item-head">
+            <div class="pos-item-pair">
+                <div class="coin-dot sol"></div>
+                <span class="pos-item-name">SOL/USDT</span>
+            </div>
+            <span class="side-tag long">LONG 25x</span>
+        </div>
+        <div class="pos-item-body">
+            <div class="pi-field"><div class="pf-label">Entry</div><div class="pf-value">142.30</div></div>
+            <div class="pi-field"><div class="pf-label">Mark</div><div class="pf-value val-red">141.10</div></div>
+            <div class="pi-field"><div class="pf-label">Stop</div><div class="pf-value">138.80</div></div>
+            <div class="pi-field"><div class="pf-label">Size</div><div class="pf-value">22.50</div></div>
+        </div>
+        <div class="pos-item-footer">
+            <span class="pnl-amount val-red">-$78.30</span>
+            <span class="pnl-percent val-red">-2.4%</span>
+        </div>
+    </div>
+</div>
+
+<!-- Recent signals -->
+<div class="panel">
+    <div class="panel-head">
+        <span class="panel-title">Recent Signals</span>
+    </div>
+
+    <div class="sig-item">
+        <div class="sig-top">
+            <span class="sig-pair">BTC <span class="side-tag long" style="font-size:9px;padding:1px 5px;">LONG</span></span>
+            <span class="sig-time">14:32 UTC</span>
+        </div>
+        <div class="sig-bar-outer"><div class="sig-bar-inner" style="width:87%"></div></div>
+        <div class="sig-bottom">
+            <span>Strength: 87%</span>
+            <span>Regime: TREND_UP</span>
+        </div>
+        <div class="sig-filters">
+            <span class="sf-tag ok">OI +2.1%</span>
+            <span class="sf-tag ok">FR 0.012%</span>
+            <span class="sf-tag ok">L/S 52/48</span>
+            <span class="sf-tag ok">Liq Safe</span>
+            <span class="sf-tag ok">FnG 42</span>
+        </div>
+    </div>
+
+    <div class="sig-item">
+        <div class="sig-top">
+            <span class="sig-pair">ADA <span class="side-tag long" style="font-size:9px;padding:1px 5px;">LONG</span></span>
+            <span class="sig-time">14:00 UTC</span>
+        </div>
+        <div class="sig-bar-outer"><div class="sig-bar-inner" style="width:62%;background:var(--yellow)"></div></div>
+        <div class="sig-bottom">
+            <span>Strength: 62%</span>
+            <span style="color:var(--red)">REJECTED</span>
+        </div>
+        <div class="sig-filters">
+            <span class="sf-tag ok">OI +0.3%</span>
+            <span class="sf-tag no">FR 0.08%</span>
+            <span class="sf-tag no">L/S 68/32</span>
+            <span class="sf-tag ok">Liq Safe</span>
+        </div>
+    </div>
+</div>
+
+<!-- Alerts -->
+<div class="panel" style="padding-bottom: 20px;">
+    <div class="panel-head">
+        <span class="panel-title">Activity</span>
+    </div>
+
+    <div class="alert-item">
+        <div class="al-indicator trade"></div>
+        <div class="al-body">
+            <div class="al-time">14:32 UTC</div>
+            <div class="al-msg"><strong>BTC</strong> Breakout LONG opened @ 84,230 | margin $3,210</div>
+        </div>
+    </div>
+
+    <div class="alert-item">
+        <div class="al-indicator warn"></div>
+        <div class="al-body">
+            <div class="al-time">14:00 UTC</div>
+            <div class="al-msg"><strong>ADA</strong> Signal rejected: Funding extreme + L/S crowded</div>
+        </div>
+    </div>
+
+    <div class="alert-item">
+        <div class="al-indicator trade"></div>
+        <div class="al-body">
+            <div class="al-time">13:30 UTC</div>
+            <div class="al-msg"><strong>ETH</strong> FLIP: closed LONG +$180.20, opened SHORT @ 1,920.4</div>
+        </div>
+    </div>
+
+    <div class="alert-item">
+        <div class="al-indicator info"></div>
+        <div class="al-body">
+            <div class="al-time">13:00 UTC</div>
+            <div class="al-msg">Scan cycle: 4 symbols, Fear&Greed 42 (Fear), 2 signals generated</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+</script>
+</body>
+</html>
