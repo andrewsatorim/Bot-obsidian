@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Bot-Obsidian — Premium</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/*
+ * PREMIUM EDITION
+ * Clean finance × curated news × wellness calm.
+ * Revolut meets Apple Health meets Bloomberg.
+ * Deep navy canvas, mint/teal wellness accent, warm gold for value.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2129;
+    --surface-elevated: #21262d;
+    --border: rgba(240, 246, 252, 0.06);
+    --border-accent: rgba(240, 246, 252, 0.1);
+
+    --text: #f0f3f6;
+    --text-2: #9eaab6;
+    --text-3: #5d6a76;
+
+    --mint: #56d4a5;
+    --mint-soft: rgba(86, 212, 165, 0.10);
+    --mint-medium: rgba(86, 212, 165, 0.18);
+
+    --coral: #f07178;
+    --coral-soft: rgba(240, 113, 120, 0.10);
+
+    --gold: #e8b34b;
+    --gold-soft: rgba(232, 179, 75, 0.10);
+
+    --blue: #79b8ff;
+    --blue-soft: rgba(121, 184, 255, 0.08);
+
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 28px;
+}
+
+/* ================================================================
+   HEADER
+   ================================================================ */
+
+.header {
+    padding: 16px 20px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.brand-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, var(--mint), #3ecf8e);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    color: var(--bg);
+}
+
+.brand-text {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+}
+
+.header-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mint);
+    box-shadow: 0 0 8px rgba(86, 212, 165, 0.4);
+}
+
+.mode-pill {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--surface-elevated);
+    color: var(--text-2);
+    border: 1px solid var(--border-accent);
+}
+
+.mode-pill.live {
+    background: var(--coral-soft);
+    color: var(--coral);
+    border-color: transparent;
+}
+
+/* ================================================================
+   TABS
+   ================================================================ */
+
+.tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 16px;
+    margin-bottom: 16px;
+}
+
+.tab {
+    flex: 1;
+    padding: 8px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-3);
+    background: none;
+    border: none;
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.tab.active {
+    color: var(--text);
+    background: var(--surface);
+}
+
+/* ================================================================
+   EQUITY HERO
+   ================================================================ */
+
+.equity-hero {
+    margin: 0 16px 20px;
+    padding: 22px 20px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle top glow */
+.equity-hero::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 100px;
+    background: radial-gradient(ellipse, rgba(86, 212, 165, 0.08), transparent 70%);
+    pointer-events: none;
+}
+
+.eq-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+
+.eq-main {
+    position: relative;
+}
+
+.eq-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 6px;
+}
+
+.eq-value {
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1;
+}
+
+.eq-pnl-block {
+    text-align: right;
+}
+
+.eq-pnl-value {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.eq-pnl-pct {
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 2px;
+}
+
+/* Metrics strip */
+.eq-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.eq-metric {
+    padding: 10px 8px;
+    text-align: center;
+    background: var(--surface-2);
+}
+
+.eq-metric .em-val {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+
+.eq-metric .em-label {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 3px;
+}
+
+/* ================================================================
+   HEALTH BAR (Drawdown as wellness gauge)
+   ================================================================ */
+
+.health-bar {
+    margin: 0 16px 20px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+}
+
+.hb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.hb-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.hb-value {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.hb-track {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--surface-elevated);
+    overflow: hidden;
+    position: relative;
+}
+
+.hb-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    background: linear-gradient(90deg, var(--mint), #3ecf8e);
+}
+
+.hb-fill.caution {
+    background: linear-gradient(90deg, var(--gold), #d4a03c);
+}
+
+.hb-fill.danger {
+    background: linear-gradient(90deg, var(--coral), #e05560);
+}
+
+.hb-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--text-3);
+}
+
+/* ================================================================
+   MARKET PULSE (News × Finance fusion)
+   ================================================================ */
+
+.section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    margin-bottom: 10px;
+}
+
+.section-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+}
+
+.section-badge {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: var(--mint-soft);
+    color: var(--mint);
+    letter-spacing: 0.3px;
+}
+
+.market-scroll {
+    display: flex;
+    gap: 10px;
+    padding: 0 16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-bottom: 20px;
+}
+
+.market-scroll::-webkit-scrollbar { display: none; }
+
+.market-card {
+    min-width: 140px;
+    padding: 14px;
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.mc-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.mc-symbol {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+
+.mc-regime {
+    font-size: 8px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mc-regime.up { background: var(--mint-soft); color: var(--mint); }
+.mc-regime.down { background: var(--coral-soft); color: var(--coral); }
+.mc-regime.range { background: var(--blue-soft); color: var(--blue); }
+.mc-regime.volatile { background: var(--gold-soft); color: var(--gold); }
+
+.mc-price {
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
+    margin-bottom: 2px;
+}
+
+.mc-change {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.mc-details {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+
+.mc-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    padding: 2px 0;
+}
+
+.mc-row span:first-child { color: var(--text-3); }
+.mc-row span:last-child { color: var(--text-2); font-weight: 500; }
+
+/* Sentiment card (special) */
+.sentiment-card {
+    min-width: 140px;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--surface), var(--surface-2));
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.sc-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.sc-gauge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.sc-gauge-ring {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid var(--surface-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+    position: relative;
+}
+
+.sc-gauge-ring::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: var(--gold);
+    border-right-color: var(--gold);
+    transform: rotate(-45deg);
+}
+
+.sc-gauge-text {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.sc-headline {
+    font-size: 10px;
+    color: var(--text-3);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ================================================================
+   POSITIONS
+   ================================================================ */
+
+.positions {
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.pos-card {
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+
+.pos-card:active {
+    border-color: var(--border-accent);
+}
+
+.pos-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+}
+
+.pos-pair {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pos-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.pos-icon.btc { background: rgba(247, 147, 26, 0.12); color: #f7931a; }
+.pos-icon.eth { background: rgba(98, 126, 234, 0.12); color: #627eea; }
+.pos-icon.sol { background: rgba(153, 69, 255, 0.12); color: #9945ff; }
+
+.pos-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+
+.pos-sub {
+    font-size: 10px;
+    color: var(--text-3);
+    margin-top: 1px;
+}
+
+.pos-side {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.3px;
+}
+
+.pos-side.long { background: var(--mint-soft); color: var(--mint); }
+.pos-side.short { background: var(--coral-soft); color: var(--coral); }
+
+.pos-body {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 0 16px 12px;
+    gap: 4px;
+}
+
+.pb-field {
+    text-align: center;
+}
+
+.pb-label {
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.pb-value {
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+}
+
+.pos-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+}
+
+.pf-pnl {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+}
+
+.pf-pct {
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* ================================================================
+   SIGNALS
+   ================================================================ */
+
+.signals {
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.sig-card {
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+}
+
+.sig-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.sig-pair {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.sig-time {
+    font-size: 10px;
+    color: var(--text-3);
+}
+
+.sig-bar {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--surface-elevated);
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.sig-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--mint), var(--blue));
+    transition: width 0.3s;
+}
+
+.sig-bar-fill.rejected {
+    background: linear-gradient(90deg, var(--gold), var(--coral));
+}
+
+.sig-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-2);
+    margin-bottom: 8px;
+}
+
+.sig-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.sf {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 3px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.2px;
+}
+
+.sf.pass { background: var(--mint-soft); color: var(--mint); }
+.sf.fail { background: var(--coral-soft); color: var(--coral); }
+
+/* ================================================================
+   ACTIVITY FEED (News-style)
+   ================================================================ */
+
+.activity {
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.act-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.act-item:last-child { border-bottom: none; }
+
+.act-indicator {
+    width: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.act-indicator.trade { background: var(--mint); }
+.act-indicator.warn { background: var(--gold); }
+.act-indicator.info { background: var(--blue); }
+.act-indicator.error { background: var(--coral); }
+
+.act-body { flex: 1; min-width: 0; }
+
+.act-time {
+    font-size: 10px;
+    color: var(--text-3);
+    margin-bottom: 3px;
+}
+
+.act-msg {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--text-2);
+}
+
+.act-msg strong {
+    color: var(--text);
+    font-weight: 700;
+}
+
+/* ================================================================
+   UTILITIES
+   ================================================================ */
+
+.c-mint { color: var(--mint); }
+.c-coral { color: var(--coral); }
+.c-gold { color: var(--gold); }
+.c-blue { color: var(--blue); }
+.c-text2 { color: var(--text-2); }
+
+.mb-20 { margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<div class="header">
+    <div class="header-brand">
+        <div class="brand-icon">O</div>
+        <span class="brand-text">Obsidian</span>
+    </div>
+    <div class="header-meta">
+        <div class="status-dot"></div>
+        <span class="mode-pill">PAPER</span>
+    </div>
+</div>
+
+<!-- ============ TABS ============ -->
+<div class="tabs">
+    <button class="tab active">Overview</button>
+    <button class="tab">Positions</button>
+    <button class="tab">Signals</button>
+    <button class="tab">Settings</button>
+</div>
+
+<!-- ============ EQUITY HERO ============ -->
+<div class="equity-hero">
+    <div class="eq-top-row">
+        <div class="eq-main">
+            <div class="eq-label">Total Equity</div>
+            <div class="eq-value">$12,847<span style="font-size:22px;color:var(--text-2)">.32</span></div>
+        </div>
+        <div class="eq-pnl-block">
+            <div class="eq-pnl-value c-mint">+$847.32</div>
+            <div class="eq-pnl-pct c-mint">+7.05% today</div>
+        </div>
+    </div>
+
+    <div class="eq-metrics">
+        <div class="eq-metric">
+            <div class="em-val">$13,100</div>
+            <div class="em-label">Peak</div>
+        </div>
+        <div class="eq-metric">
+            <div class="em-val">3 / 4</div>
+            <div class="em-label">Positions</div>
+        </div>
+        <div class="eq-metric">
+            <div class="em-val">68%</div>
+            <div class="em-label">Win Rate</div>
+        </div>
+        <div class="eq-metric">
+            <div class="em-val">2.1</div>
+            <div class="em-label">Sharpe</div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ HEALTH BAR (Drawdown) ============ -->
+<div class="health-bar">
+    <div class="hb-header">
+        <span class="hb-title">Portfolio Health</span>
+        <span class="hb-value c-mint">Healthy</span>
+    </div>
+    <div class="hb-track">
+        <div class="hb-fill" style="width: 23%"></div>
+    </div>
+    <div class="hb-labels">
+        <span>Drawdown 3.4%</span>
+        <span>Limit 15%</span>
+    </div>
+</div>
+
+<!-- ============ MARKET PULSE ============ -->
+<div class="section-head">
+    <span class="section-title">Market Pulse</span>
+    <span class="section-badge">Live</span>
+</div>
+
+<div class="market-scroll">
+    <!-- Sentiment card -->
+    <div class="sentiment-card">
+        <div class="sc-label">Fear & Greed</div>
+        <div class="sc-gauge">
+            <div class="sc-gauge-ring">42</div>
+            <div class="sc-gauge-text">
+                <div style="color:var(--gold);font-weight:700">Fear</div>
+                <div style="color:var(--text-3);font-size:10px">Contrarian: Bullish</div>
+            </div>
+        </div>
+        <div class="sc-headline">BTC funding low, OI expanding — breakout setup forming</div>
+    </div>
+
+    <!-- BTC -->
+    <div class="market-card">
+        <div class="mc-top">
+            <span class="mc-symbol">BTC</span>
+            <span class="mc-regime up">Trend Up</span>
+        </div>
+        <div class="mc-price c-mint">85,342</div>
+        <div class="mc-change c-mint">+2.4%</div>
+        <div class="mc-details">
+            <div class="mc-row"><span>OI Change</span><span>+2.1%</span></div>
+            <div class="mc-row"><span>Funding</span><span>0.012%</span></div>
+            <div class="mc-row"><span>L/S Ratio</span><span>52 / 48</span></div>
+        </div>
+    </div>
+
+    <!-- ETH -->
+    <div class="market-card">
+        <div class="mc-top">
+            <span class="mc-symbol">ETH</span>
+            <span class="mc-regime down">Trend Dn</span>
+        </div>
+        <div class="mc-price c-coral">1,892</div>
+        <div class="mc-change c-coral">-1.2%</div>
+        <div class="mc-details">
+            <div class="mc-row"><span>OI Change</span><span>-0.5%</span></div>
+            <div class="mc-row"><span>Funding</span><span>0.008%</span></div>
+            <div class="mc-row"><span>L/S Ratio</span><span>45 / 55</span></div>
+        </div>
+    </div>
+
+    <!-- SOL -->
+    <div class="market-card">
+        <div class="mc-top">
+            <span class="mc-symbol">SOL</span>
+            <span class="mc-regime volatile">Volatile</span>
+        </div>
+        <div class="mc-price c-mint">143.87</div>
+        <div class="mc-change c-mint">+1.8%</div>
+        <div class="mc-details">
+            <div class="mc-row"><span>OI Change</span><span>+1.4%</span></div>
+            <div class="mc-row"><span>Funding</span><span>0.015%</span></div>
+            <div class="mc-row"><span>L/S Ratio</span><span>54 / 46</span></div>
+        </div>
+    </div>
+
+    <!-- ADA -->
+    <div class="market-card">
+        <div class="mc-top">
+            <span class="mc-symbol">ADA</span>
+            <span class="mc-regime range">Range</span>
+        </div>
+        <div class="mc-price c-text2">0.6234</div>
+        <div class="mc-change c-text2">+0.1%</div>
+        <div class="mc-details">
+            <div class="mc-row"><span>OI Change</span><span>-0.1%</span></div>
+            <div class="mc-row"><span>Funding</span><span>0.003%</span></div>
+            <div class="mc-row"><span>L/S Ratio</span><span>50 / 50</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ POSITIONS ============ -->
+<div class="section-head">
+    <span class="section-title">Positions</span>
+    <span class="section-badge">3 Open</span>
+</div>
+
+<div class="positions">
+    <!-- BTC -->
+    <div class="pos-card">
+        <div class="pos-head">
+            <div class="pos-pair">
+                <div class="pos-icon btc">B</div>
+                <div>
+                    <div class="pos-name">BTC/USDT</div>
+                    <div class="pos-sub">Opened 2h ago</div>
+                </div>
+            </div>
+            <span class="pos-side long">LONG 25x</span>
+        </div>
+        <div class="pos-body">
+            <div class="pb-field"><div class="pb-label">Entry</div><div class="pb-value">84,230</div></div>
+            <div class="pb-field"><div class="pb-label">Mark</div><div class="pb-value c-mint">85,342</div></div>
+            <div class="pb-field"><div class="pb-label">Stop</div><div class="pb-value">83,100</div></div>
+            <div class="pb-field"><div class="pb-label">Size</div><div class="pb-value">0.038</div></div>
+        </div>
+        <div class="pos-footer">
+            <span class="pf-pnl c-mint">+$412.80</span>
+            <span class="pf-pct c-mint">+12.8%</span>
+        </div>
+    </div>
+
+    <!-- ETH -->
+    <div class="pos-card">
+        <div class="pos-head">
+            <div class="pos-pair">
+                <div class="pos-icon eth">E</div>
+                <div>
+                    <div class="pos-name">ETH/USDT</div>
+                    <div class="pos-sub">Flipped 1h ago</div>
+                </div>
+            </div>
+            <span class="pos-side short">SHORT 25x</span>
+        </div>
+        <div class="pos-body">
+            <div class="pb-field"><div class="pb-label">Entry</div><div class="pb-value">1,920.4</div></div>
+            <div class="pb-field"><div class="pb-label">Mark</div><div class="pb-value c-mint">1,892.4</div></div>
+            <div class="pb-field"><div class="pb-label">Stop</div><div class="pb-value">1,985.0</div></div>
+            <div class="pb-field"><div class="pb-label">Size</div><div class="pb-value">1.670</div></div>
+        </div>
+        <div class="pos-footer">
+            <span class="pf-pnl c-mint">+$215.40</span>
+            <span class="pf-pct c-mint">+6.7%</span>
+        </div>
+    </div>
+
+    <!-- SOL -->
+    <div class="pos-card">
+        <div class="pos-head">
+            <div class="pos-pair">
+                <div class="pos-icon sol">S</div>
+                <div>
+                    <div class="pos-name">SOL/USDT</div>
+                    <div class="pos-sub">Opened 4h ago</div>
+                </div>
+            </div>
+            <span class="pos-side long">LONG 25x</span>
+        </div>
+        <div class="pos-body">
+            <div class="pb-field"><div class="pb-label">Entry</div><div class="pb-value">142.30</div></div>
+            <div class="pb-field"><div class="pb-label">Mark</div><div class="pb-value c-coral">141.10</div></div>
+            <div class="pb-field"><div class="pb-label">Stop</div><div class="pb-value">138.80</div></div>
+            <div class="pb-field"><div class="pb-label">Size</div><div class="pb-value">22.50</div></div>
+        </div>
+        <div class="pos-footer">
+            <span class="pf-pnl c-coral">-$78.30</span>
+            <span class="pf-pct c-coral">-2.4%</span>
+        </div>
+    </div>
+</div>
+
+<!-- ============ RECENT SIGNALS ============ -->
+<div class="section-head">
+    <span class="section-title">Signals</span>
+</div>
+
+<div class="signals">
+    <div class="sig-card">
+        <div class="sig-top">
+            <span class="sig-pair">BTC <span class="pos-side long" style="font-size:9px;padding:2px 6px;">LONG</span></span>
+            <span class="sig-time">14:32 UTC</span>
+        </div>
+        <div class="sig-bar"><div class="sig-bar-fill" style="width:87%"></div></div>
+        <div class="sig-meta">
+            <span>Strength 87%</span>
+            <span>Regime: Trend Up</span>
+        </div>
+        <div class="sig-filters">
+            <span class="sf pass">OI +2.1%</span>
+            <span class="sf pass">FR 0.012%</span>
+            <span class="sf pass">L/S 52/48</span>
+            <span class="sf pass">Liq Safe</span>
+            <span class="sf pass">FnG 42</span>
+        </div>
+    </div>
+
+    <div class="sig-card">
+        <div class="sig-top">
+            <span class="sig-pair">ADA <span class="pos-side long" style="font-size:9px;padding:2px 6px;">LONG</span></span>
+            <span class="sig-time">14:00 UTC</span>
+        </div>
+        <div class="sig-bar"><div class="sig-bar-fill rejected" style="width:62%"></div></div>
+        <div class="sig-meta">
+            <span>Strength 62%</span>
+            <span class="c-coral" style="font-weight:600">Rejected</span>
+        </div>
+        <div class="sig-filters">
+            <span class="sf pass">OI +0.3%</span>
+            <span class="sf fail">FR 0.08%</span>
+            <span class="sf fail">L/S 68/32</span>
+            <span class="sf pass">Liq Safe</span>
+        </div>
+    </div>
+</div>
+
+<!-- ============ ACTIVITY FEED ============ -->
+<div class="section-head">
+    <span class="section-title">Activity</span>
+</div>
+
+<div class="activity">
+    <div class="act-item">
+        <div class="act-indicator trade" style="height:36px"></div>
+        <div class="act-body">
+            <div class="act-time">14:32 UTC</div>
+            <div class="act-msg"><strong>BTC</strong> Breakout LONG opened @ 84,230 &middot; margin $3,210</div>
+        </div>
+    </div>
+    <div class="act-item">
+        <div class="act-indicator warn" style="height:36px"></div>
+        <div class="act-body">
+            <div class="act-time">14:00 UTC</div>
+            <div class="act-msg"><strong>ADA</strong> Signal rejected &mdash; funding extreme, L/S crowded</div>
+        </div>
+    </div>
+    <div class="act-item">
+        <div class="act-indicator trade" style="height:36px"></div>
+        <div class="act-body">
+            <div class="act-time">13:30 UTC</div>
+            <div class="act-msg"><strong>ETH</strong> Flip: closed LONG +$180 &rarr; opened SHORT @ 1,920.4</div>
+        </div>
+    </div>
+    <div class="act-item">
+        <div class="act-indicator info" style="height:36px"></div>
+        <div class="act-body">
+            <div class="act-time">13:00 UTC</div>
+            <div class="act-msg">Scan complete &middot; 4 symbols &middot; Fear & Greed 42 &middot; 2 signals</div>
+        </div>
+    </div>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+    });
+});
+</script>
+</body>
+</html>
