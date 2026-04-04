@@ -3,6 +3,9 @@ name = "bot-obsidian"
 version = "0.1.0"
 description = "Multi-Layer Crypto Decision Engine"
 requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+]
 
 [tool.black]
 line-length = 100
