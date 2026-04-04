@@ -2,36 +2,34 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from statistics import mean, pstdev
-from typing import Any
 
 from app.models.feature_vector import FeatureVector
+from app.models.market_bundle import MarketBundle
 from app.models.market_snapshot import MarketSnapshot
-from app.models.onchain_snapshot import OnChainSnapshot
 from app.models.news_impact import NewsImpactReport
+from app.models.onchain_snapshot import OnChainSnapshot
 from app.ports.analytics_port import AnalyticsPort
 
 
 class FeatureEngine(AnalyticsPort):
-    """Builds normalized features from market and auxiliary inputs.
+    """Builds normalized features from a MarketBundle.
 
-    The current implementation is intentionally deterministic and lightweight.
+    The implementation is intentionally deterministic and lightweight.
     It is designed as the first production-safe layer that can later be extended
     with richer derivatives, on-chain, and event inputs without changing the
     FeatureVector contract.
     """
 
-    def build_features(self, market_data: Any) -> FeatureVector:
-        bundle = self._normalize_bundle(market_data)
-
-        market: MarketSnapshot = bundle["market"]
-        price_history: list[float] = bundle["price_history"]
-        volume_history: list[float] = bundle["volume_history"]
-        oi_history: list[float] = bundle["oi_history"]
-        funding_history: list[float] = bundle["funding_history"]
-        liquidation_above: float = bundle["liquidation_above"]
-        liquidation_below: float = bundle["liquidation_below"]
-        onchain: OnChainSnapshot | None = bundle["onchain"]
-        news: NewsImpactReport | None = bundle["news"]
+    def build_features(self, market_data: MarketBundle) -> FeatureVector:
+        market: MarketSnapshot = market_data["market"]
+        price_history: list[float] = list(market_data.get("price_history", [market.price]))
+        volume_history: list[float] = list(market_data.get("volume_history", [market.volume]))
+        oi_history: list[float] = list(market_data.get("oi_history", []))
+        funding_history: list[float] = list(market_data.get("funding_history", []))
+        liquidation_above: float = float(market_data.get("liquidation_above", 0.0))
+        liquidation_below: float = float(market_data.get("liquidation_below", 0.0))
+        onchain: OnChainSnapshot | None = market_data.get("onchain")
+        news: NewsImpactReport | None = market_data.get("news")
 
         atr = self._compute_atr_proxy(price_history)
         volatility_regime = self._compute_volatility_regime(price_history)
@@ -65,39 +63,6 @@ class FeatureEngine(AnalyticsPort):
             onchain_score=onchain_score,
             regime_label=regime_label,
         )
-
-    def _normalize_bundle(self, market_data: Any) -> dict[str, Any]:
-        if isinstance(market_data, MarketSnapshot):
-            return {
-                "market": market_data,
-                "price_history": [market_data.price],
-                "volume_history": [market_data.volume],
-                "oi_history": [],
-                "funding_history": [],
-                "liquidation_above": 0.0,
-                "liquidation_below": 0.0,
-                "onchain": None,
-                "news": None,
-            }
-
-        if isinstance(market_data, dict):
-            market = market_data.get("market")
-            if not isinstance(market, MarketSnapshot):
-                raise TypeError("market_data['market'] must be a MarketSnapshot")
-
-            return {
-                "market": market,
-                "price_history": list(market_data.get("price_history", [market.price])),
-                "volume_history": list(market_data.get("volume_history", [market.volume])),
-                "oi_history": list(market_data.get("oi_history", [])),
-                "funding_history": list(market_data.get("funding_history", [])),
-                "liquidation_above": float(market_data.get("liquidation_above", 0.0)),
-                "liquidation_below": float(market_data.get("liquidation_below", 0.0)),
-                "onchain": market_data.get("onchain"),
-                "news": market_data.get("news"),
-            }
-
-        raise TypeError("market_data must be MarketSnapshot or dict bundle")
 
     def _compute_atr_proxy(self, prices: Sequence[float]) -> float:
         if len(prices) < 2:
