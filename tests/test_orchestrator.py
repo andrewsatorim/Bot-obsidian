@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from typing import Optional
-from dataclasses import dataclass
 
 import pytest
 
 from app.models.feature_vector import FeatureVector
+from app.models.market_bundle import MarketBundle
 from app.models.market_snapshot import MarketSnapshot
 from app.models.order import Order
 from app.models.execution_report import ExecutionReport
@@ -22,22 +22,25 @@ class FakeDataFeed:
     def __init__(self) -> None:
         self.call_count = 0
 
-    async def get_market_data(self, symbol: str) -> MarketSnapshot:
+    async def get_market_data(self, symbol: str) -> MarketBundle:
         self.call_count += 1
-        return MarketSnapshot(
-            symbol=symbol,
-            price=100.0,
-            volume_24h=1_000_000.0,
-            bid=99.9,
-            ask=100.1,
-            timestamp=1_000_000,
+        return MarketBundle(
+            market=MarketSnapshot(
+                symbol=symbol,
+                price=100.0,
+                volume_24h=1_000_000.0,
+                bid=99.9,
+                ask=100.1,
+                timestamp=1_000_000,
+            )
         )
 
 
 class FakeAnalytics:
-    def build_features(self, market_data: MarketSnapshot) -> FeatureVector:
+    def build_features(self, market_data: MarketBundle) -> FeatureVector:
+        snap = market_data["market"]
         return FeatureVector(
-            symbol=market_data.symbol,
+            symbol=snap.symbol,
             atr_proxy=2.0,
             volatility=0.05,
             volume_ratio=1.2,
