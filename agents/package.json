@@ -1,10 +1,14 @@
 {
-  "name": "agents",
+  "name": "my-agent",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "21st Agents — My Agent for Bot Obsidian",
+  "main": "src/agent.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "deploy": "npx @21st-sdk/cli deploy"
+  },
+  "dependencies": {
+    "@21st-sdk/agent": "latest",
+    "zod": "^3.23.0"
   },
   "keywords": [],
   "author": "",
