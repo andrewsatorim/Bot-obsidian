@@ -68,3 +68,54 @@ Page
 - [ ] Responsive behavior is defined
 - [ ] Hover/focus/active states exist
 - [ ] Dark mode variant exists (if applicable)
+
+## Figma Dev Mode & Inspect
+
+When user provides Figma inspect values:
+- **Width/Height** → map to Tailwind: `w-[Npx]` or closest utility
+- **Padding** → `p-[top] pr-[right] pb-[bottom] pl-[left]` or shorthand
+- **Gap** → `gap-[N]` in flex/grid
+- **Fill** → `bg-[#hex]` or design token
+- **Stroke** → `border border-[#hex]`
+- **Effects** → `shadow-[value]` or `blur-[N]`
+- **Text** → `text-[size] font-[weight] leading-[lineHeight] tracking-[letterSpacing]`
+
+## Icon Libraries
+
+| Library | Style | Package | Count |
+|---------|-------|---------|-------|
+| **Lucide** | Line (clean) | `lucide-react` | 1,500+ |
+| **Heroicons** | Line + solid | `@heroicons/react` | 300+ |
+| **Phosphor** | 6 weights | `@phosphor-icons/react` | 1,200+ |
+| **Tabler** | Line (consistent) | `@tabler/icons-react` | 4,500+ |
+
+```tsx
+// Lucide (recommended — tree-shakeable)
+import { ArrowRight, Check, X } from "lucide-react"
+<ArrowRight className="h-4 w-4" />
+
+// Heroicons
+import { ArrowRightIcon } from "@heroicons/react/24/outline"
+```
+
+## Screenshot Analysis Tips
+
+When analyzing a screenshot or mockup image:
+1. **Zoom in** — identify exact spacing between elements
+2. **Color pick** — extract all unique colors, create a palette
+3. **Font identification** — check Google Fonts or system fonts
+4. **Grid system** — determine column count and gutter width
+5. **Component patterns** — recognize shadcn/Radix/MUI components
+6. **Responsive clues** — is this mobile, tablet, or desktop view?
+7. **Interaction hints** — hover states, dropdowns, modals visible
+
+## Common Conversion Mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| Using fixed px for everything | Use relative units (rem, %, Tailwind utilities) |
+| Ignoring touch targets | Ensure 44px minimum on mobile |
+| Missing hover/focus states | Add for every interactive element |
+| No loading/empty states | Design them even if not in mockup |
+| Pixel-perfect but not responsive | Design must adapt across breakpoints |
+| Hardcoded colors | Use CSS variables or Tailwind config |

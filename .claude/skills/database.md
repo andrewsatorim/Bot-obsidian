@@ -110,3 +110,115 @@ CREATE TABLE audit_log (
 | Full-text search | Built-in (tsvector) | Built-in (FULLTEXT) | FTS5 extension |
 | Concurrency | MVCC, excellent | OK with InnoDB | Single-writer |
 | Extensions | Rich ecosystem | Limited | Limited |
+
+## Redis Patterns
+
+```bash
+# Common operations
+SET user:123:session "token_abc" EX 3600    # with 1h expiry
+GET user:123:session
+INCR rate:ip:1.2.3.4                        # rate limiting counter
+EXPIRE rate:ip:1.2.3.4 60                   # 60s window
+LPUSH queue:emails '{"to":"a@b.com"}'       # job queue
+RPOP queue:emails                           # consume job
+```
+
+| Pattern | Redis structure | Use case |
+|---------|----------------|----------|
+| **Cache** | `SET key value EX ttl` | Query results, API responses |
+| **Session** | `HSET session:{id} field value` | User sessions |
+| **Rate limit** | `INCR + EXPIRE` | API throttling |
+| **Queue** | `LPUSH + BRPOP` | Background jobs |
+| **Pub/Sub** | `PUBLISH + SUBSCRIBE` | Real-time notifications |
+| **Sorted set** | `ZADD leaderboard score user` | Rankings, feeds |
+| **Lock** | `SET lock:resource NX EX 10` | Distributed locking |
+
+## Connection Pooling
+
+### PostgreSQL (pgBouncer)
+```ini
+# pgbouncer.ini
+[databases]
+mydb = host=localhost dbname=mydb
+
+[pgbouncer]
+pool_mode = transaction       # recommended for web apps
+max_client_conn = 1000
+default_pool_size = 20
+min_pool_size = 5
+```
+
+### Python (asyncpg)
+```python
+import asyncpg
+
+pool = await asyncpg.create_pool(
+    dsn="postgresql://user:pass@localhost/mydb",
+    min_size=5,
+    max_size=20,
+    command_timeout=10,
+)
+
+async with pool.acquire() as conn:
+    rows = await conn.fetch("SELECT * FROM users WHERE id = $1", user_id)
+```
+
+### Prisma (Node.js)
+```typescript
+// Singleton pattern — never create multiple PrismaClient instances
+import { PrismaClient } from "@prisma/client"
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient }
+export const prisma = globalForPrisma.prisma ?? new PrismaClient()
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
+```
+
+## Backup & Recovery
+
+```bash
+# PostgreSQL
+pg_dump -Fc mydb > backup.dump                    # compressed backup
+pg_restore -d mydb backup.dump                    # restore
+pg_dump --schema-only mydb > schema.sql           # schema only
+
+# Automated daily backup (cron)
+0 3 * * * pg_dump -Fc mydb > /backups/mydb_$(date +\%Y\%m\%d).dump
+```
+
+**Strategy:**
+- Daily full backup + WAL archiving for point-in-time recovery
+- Test restores monthly (untested backups = no backups)
+- Keep 7 daily + 4 weekly + 3 monthly backups
+- Store offsite (S3, GCS) with encryption
+
+## Query Debugging Commands
+
+```sql
+-- PostgreSQL: analyze slow query
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+SELECT * FROM orders WHERE user_id = 123 ORDER BY created_at DESC LIMIT 20;
+
+-- Find missing indexes (queries without index scans)
+SELECT query, calls, mean_exec_time
+FROM pg_stat_statements
+ORDER BY mean_exec_time DESC
+LIMIT 20;
+
+-- Table bloat and maintenance
+VACUUM ANALYZE users;                  -- update stats + reclaim space
+REINDEX INDEX idx_users_email;         -- rebuild corrupted index
+SELECT pg_size_pretty(pg_total_relation_size('users'));  -- table size
+```
+
+## Database Design Checklist
+
+- [ ] Every table has a primary key
+- [ ] Foreign keys have ON DELETE behavior defined (CASCADE, SET NULL, RESTRICT)
+- [ ] Indexes exist for all WHERE/JOIN/ORDER BY columns in frequent queries
+- [ ] No nullable columns that should be NOT NULL
+- [ ] Timestamps use TIMESTAMPTZ (timezone-aware), not TIMESTAMP
+- [ ] UUIDs used for public-facing IDs (auto-increment for internal)
+- [ ] Migrations are reversible and tested on production-size data
+- [ ] Connection pooling configured (not one connection per request)
+- [ ] Backup strategy defined and tested
+- [ ] Sensitive data encrypted at rest (PII, tokens, passwords)

@@ -131,3 +131,46 @@ Use formatting: **bold**, _italic_, `code`.
 | **Link clicks** | Traffic to your product |
 | **Follower growth rate** | Momentum, not absolute number |
 | **DMs / replies** | Deepest form of engagement |
+
+## Paid Ads (Quick Reference)
+
+### Meta (Facebook/Instagram) Ads
+- **Objective:** Conversions > Traffic > Engagement
+- **Audience:** Lookalike (1-3% of existing customers) > Interest-based > Broad
+- **Creative:** Video (15-30s) > Carousel > Single image
+- **Copy:** Hook in first line, benefit-focused, clear CTA
+- **Budget:** Start $20-50/day per ad set, test 3-5 creatives
+
+### Google Ads
+- **Search:** Bid on high-intent keywords ("buy X", "X pricing", "X vs Y")
+- **Headlines:** Include keyword + benefit + CTA (max 30 chars each)
+- **Extensions:** Sitelinks, callouts, structured snippets (always use)
+- **Quality Score:** relevance + landing page experience + CTR
+
+### Twitter/X Ads
+- **Best for:** Developer tools, B2B SaaS, tech products
+- **Format:** Promoted tweets that look native, not ad-like
+- **Targeting:** Followers of competitors, interests, keywords
+
+## Analytics Tools
+
+| Tool | Best for | Price |
+|------|----------|-------|
+| **PostHog** | Product + marketing analytics | Free < 1M events |
+| **Plausible** | Simple, privacy-first web analytics | From $9/month |
+| **Buffer** | Scheduling + basic analytics | Free (3 channels) |
+| **Typefully** | Twitter/X scheduling + analytics | From $12/month |
+| **Metricool** | Multi-platform analytics | Free (limited) |
+
+## Social Media Checklist
+
+- [ ] Bio includes: what you do + who it's for + CTA link
+- [ ] Profile image is consistent across platforms
+- [ ] Content calendar planned 2 weeks ahead
+- [ ] 3-5 content pillars defined
+- [ ] Engagement routine: 15 min before + after posting
+- [ ] Analytics reviewed weekly (what worked, what didn't)
+- [ ] Best-performing content repurposed to other platforms
+- [ ] Posting at optimal times (check platform insights)
+- [ ] Hashtag strategy: 3-5 relevant, not spammy
+- [ ] DMs answered within 24 hours

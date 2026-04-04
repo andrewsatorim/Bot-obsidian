@@ -151,3 +151,36 @@ Legal: Privacy, Terms
 - Walls of text — nobody reads them
 - Popup on first visit — 90% close rate
 - Hidden pricing — breeds distrust
+
+## Real Conversion Benchmarks
+
+| Page type | Average CVR | Good CVR | Great CVR |
+|-----------|------------|----------|-----------|
+| SaaS free trial | 3-5% | 7-10% | 15%+ |
+| SaaS demo request | 2-3% | 5-7% | 10%+ |
+| E-commerce product | 1-3% | 3-5% | 8%+ |
+| Lead gen (email) | 5-10% | 15-25% | 30%+ |
+| Newsletter signup | 1-3% | 5-8% | 10%+ |
+
+## Landing Page Tools
+
+| Tool | Best for | Price |
+|------|----------|-------|
+| **Next.js + Tailwind** | Custom, fast, SEO-optimized | Free |
+| **Framer** | Design-first, animations | Free tier |
+| **Webflow** | Visual builder, CMS | From $14/month |
+| **Unbounce** | A/B testing, no-code | From $99/month |
+| **Carrd** | Simple one-pagers | From $9/year |
+
+## Landing Page Verification
+
+- [ ] Value proposition clear within 5 seconds (5-second test)
+- [ ] One primary CTA above the fold
+- [ ] Social proof visible (logos, numbers, testimonials)
+- [ ] Page loads < 2 seconds (test with PageSpeed Insights)
+- [ ] Mobile version works perfectly (50%+ traffic is mobile)
+- [ ] Forms have minimal fields (name + email for signups)
+- [ ] No broken links or images
+- [ ] Analytics/conversion tracking installed (PostHog, GA4)
+- [ ] OG image set for social sharing
+- [ ] Favicon set

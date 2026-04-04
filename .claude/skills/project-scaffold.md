@@ -200,3 +200,123 @@ coverage/
   }
 }
 ```
+
+## Go Project Setup
+
+```bash
+mkdir my-service && cd my-service
+go mod init github.com/user/my-service
+```
+
+### Go Structure
+```
+my-service/
+├── cmd/
+│   └── server/main.go        # Entry point
+├── internal/
+│   ├── handler/               # HTTP handlers
+│   ├── service/               # Business logic
+│   ├── repository/            # Data access
+│   └── model/                 # Domain types
+├── pkg/                       # Public reusable packages
+├── api/                       # OpenAPI specs, proto files
+├── go.mod
+├── go.sum
+├── Makefile
+└── Dockerfile
+```
+
+### Makefile (Go)
+```makefile
+.PHONY: run build test lint
+
+run:
+	go run cmd/server/main.go
+
+build:
+	CGO_ENABLED=0 go build -o bin/server cmd/server/main.go
+
+test:
+	go test ./... -race -cover
+
+lint:
+	golangci-lint run
+```
+
+## Rust Project Setup
+
+```bash
+cargo init my-project
+# or with template
+cargo generate --git https://github.com/rust-cli/cli-template
+```
+
+## GitHub Actions CI Template (Universal)
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # Node.js project
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      # Python project (uncomment if needed)
+      # - uses: actions/setup-python@v5
+      #   with: { python-version: "3.12" }
+      # - run: pip install -e ".[dev]"
+      # - run: ruff check .
+      # - run: pytest --cov
+```
+
+## Monorepo Setup (Turborepo)
+
+```bash
+npx create-turbo@latest my-monorepo
+cd my-monorepo
+```
+
+```
+my-monorepo/
+├── apps/
+│   ├── web/            # Next.js
+│   └── api/            # Backend
+├── packages/
+│   ├── ui/             # Shared components
+│   ├── config-eslint/  # Shared ESLint config
+│   ├── config-ts/      # Shared tsconfig
+│   └── types/          # Shared types
+├── turbo.json
+├── package.json        # workspace root
+└── pnpm-workspace.yaml
+```
+
+## Project Health Checklist (Week 1)
+
+- [ ] Repository initialized with proper `.gitignore`
+- [ ] README with: description, setup, dev commands, architecture
+- [ ] `.env.example` with documented variables
+- [ ] Linter + formatter running and enforced
+- [ ] TypeScript / mypy strict mode enabled
+- [ ] CI pipeline: lint → test → build on every PR
+- [ ] First test written and passing
+- [ ] Docker setup (Dockerfile + docker-compose) if needed
+- [ ] Deployment pipeline (at least to staging)
+- [ ] Error tracking setup (Sentry or similar)
+- [ ] CLAUDE.md with project conventions (for AI-assisted development)
+```

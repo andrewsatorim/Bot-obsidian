@@ -129,3 +129,76 @@ Sitemap: https://example.com/sitemap.xml
 - [ ] External links to authoritative sources
 - [ ] Unique title and description per page
 - [ ] Canonical URL set on every page
+
+## International SEO (i18n)
+
+### hreflang Tags
+```html
+<link rel="alternate" hreflang="en" href="https://example.com/page" />
+<link rel="alternate" hreflang="ru" href="https://example.com/ru/page" />
+<link rel="alternate" hreflang="x-default" href="https://example.com/page" />
+```
+
+### Next.js i18n
+```typescript
+// next.config.js
+module.exports = {
+  i18n: {
+    locales: ["en", "ru", "es"],
+    defaultLocale: "en",
+  },
+}
+```
+
+### URL Strategy
+| Strategy | Example | Best for |
+|----------|---------|----------|
+| Subdirectories | `/ru/page` | Most projects (recommended) |
+| Subdomains | `ru.example.com` | Large regional sites |
+| ccTLDs | `example.ru` | Strong local presence needed |
+
+## SPA / SSR SEO
+
+### Problem: Client-side Rendering
+Search engines may not execute JavaScript properly → empty content indexed.
+
+### Solutions
+| Approach | Framework | SEO quality |
+|----------|-----------|-------------|
+| **SSR** (Server-Side Render) | Next.js `getServerSideProps` | Excellent |
+| **SSG** (Static Generation) | Next.js `generateStaticParams` | Excellent |
+| **ISR** (Incremental Static) | Next.js `revalidate` | Excellent |
+| **Prerendering** | prerender.io, Rendertron | Good |
+| **CSR only** | Plain React/Vue | Poor |
+
+**Rule:** Any page that needs to rank in search must be SSR or SSG.
+
+## Google Search Console
+
+### Key Reports
+- **Performance** — clicks, impressions, CTR, position per query
+- **Coverage** — indexed vs excluded pages, errors
+- **Core Web Vitals** — field data for LCP, INP, CLS
+- **Sitemaps** — submission status
+
+### Common Issues to Fix
+| Issue | Fix |
+|-------|-----|
+| "Crawled - currently not indexed" | Improve content quality, add internal links |
+| "Duplicate without user-selected canonical" | Add `<link rel="canonical">` |
+| "Page with redirect" | Fix redirect chains (max 1 hop) |
+| "Soft 404" | Return proper 404 status code |
+| "Mobile usability" | Fix viewport, tap targets, font size |
+
+## SEO Verification Checklist
+
+- [ ] Google Search Console connected and verified
+- [ ] sitemap.xml submitted and no errors
+- [ ] robots.txt allows crawling of important pages
+- [ ] No broken links (use `npx broken-link-checker http://localhost:3000`)
+- [ ] Page speed score > 90 (mobile and desktop)
+- [ ] Structured data validates (Google Rich Results Test)
+- [ ] OG tags render correctly (use ogimage.dev or metatags.io to preview)
+- [ ] hreflang set for multi-language pages
+- [ ] No duplicate content (canonical URLs set)
+- [ ] Mobile-friendly (Google Mobile-Friendly Test)

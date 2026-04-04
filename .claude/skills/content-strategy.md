@@ -150,3 +150,49 @@ One piece of content → 7+ distribution formats.
 | Conversions | Business value | Optimize CTAs |
 | Backlinks | Authority | Promote more aggressively |
 | Social shares | Resonance | Create more like this |
+
+## Keyword Research Process
+
+### Tools
+| Tool | Best for | Price |
+|------|----------|-------|
+| **Google Search Console** | What you already rank for | Free |
+| **Google Keyword Planner** | Volume estimates | Free (with Google Ads account) |
+| **Ahrefs** | Competitor analysis, backlinks | From $99/month |
+| **Ubersuggest** | Quick keyword ideas | Free (limited) |
+| **AnswerThePublic** | Question-based keywords | Free (limited) |
+| **AlsoAsked** | "People also ask" clusters | Free |
+
+### Research Steps
+1. **Seed keywords** — brainstorm 5-10 core topics
+2. **Expand** — use tools to find related long-tail keywords
+3. **Assess** — volume (>100/mo), difficulty (start with KD <30), intent
+4. **Cluster** — group related keywords into topic clusters
+5. **Map** — assign one primary keyword per page
+6. **Prioritize** — high volume + low difficulty + high intent = publish first
+
+### Content Scoring
+
+Rate each piece of content 1-5 on:
+| Factor | 1 (low) | 5 (high) |
+|--------|---------|----------|
+| **Search volume** | <100/mo | >5,000/mo |
+| **Difficulty** | KD >70 (hard) | KD <20 (easy) |
+| **Business relevance** | Tangential | Core product use case |
+| **Conversion potential** | Awareness only | Direct signup/purchase |
+| **Content gap** | Well-covered topic | Nobody writes about this |
+
+**Priority = (Volume × 0.2) + (1/Difficulty × 0.2) + (Relevance × 0.3) + (Conversion × 0.2) + (Gap × 0.1)**
+
+## Content Strategy Checklist
+
+- [ ] Audience personas defined with pain points and channels
+- [ ] 3-5 content pillars mapped to business goals
+- [ ] Keyword research completed for top 20 target terms
+- [ ] Content calendar planned 1 month ahead
+- [ ] Each piece has: primary keyword, target persona, CTA, distribution plan
+- [ ] Older content reviewed quarterly (update, merge, or archive)
+- [ ] Analytics reviewed weekly — double down on what works
+- [ ] One pillar piece per month (comprehensive, 2000+ words)
+- [ ] Every post links to 2-3 related internal pages
+- [ ] Content repurposed across 3+ channels

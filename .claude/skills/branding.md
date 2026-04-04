@@ -141,3 +141,66 @@ When reviewing any touchpoint, ask:
 Plot your brand and competitors on this grid.
 Own a quadrant nobody else occupies.
 ```
+
+## Brand Guidelines Template
+
+```markdown
+# [Brand] Brand Guidelines
+
+## Logo
+- Primary logo (horizontal + icon)
+- Minimum size: 24px height
+- Clear space: 1x logo height on all sides
+- Don't: stretch, rotate, change colors, add effects
+
+## Colors
+- Primary: [hex] — CTAs, links, key actions
+- Secondary: [hex] — accents, illustrations
+- Neutral: [hex scale] — text, borders, backgrounds
+- Semantic: success [hex], warning [hex], error [hex]
+
+## Typography
+- Display: [Font Name] — headings, hero text
+- Body: [Font Name] — paragraphs, UI text
+- Mono: [Font Name] — code, technical content
+- Scale: xs(12) sm(14) base(16) lg(18) xl(20) 2xl(24) 3xl(30)
+
+## Voice
+- We are: [3-4 adjectives]
+- We are not: [3-4 anti-adjectives]
+- We say: [examples]
+- We don't say: [examples]
+
+## Photography / Illustration
+- Style: [description]
+- Do: [examples]
+- Don't: [examples]
+```
+
+## Rebranding Process
+
+1. **Audit** — catalog all brand touchpoints (website, app, emails, social, docs, packaging)
+2. **Strategy** — define new positioning, voice, visual direction
+3. **Design** — create new identity (logo, colors, typography, imagery)
+4. **Guidelines** — document everything in brand guide
+5. **Migration plan** — prioritize touchpoints by visibility:
+   - Week 1: website, social profiles, email templates
+   - Week 2: app UI, documentation
+   - Week 3: marketing materials, presentations
+   - Week 4: internal tools, minor touchpoints
+6. **Announce** — blog post, social media, email to customers
+7. **Enforce** — review all new content against guidelines for 90 days
+
+## Branding Checklist
+
+- [ ] Positioning statement defined (for whom, what, unlike, because)
+- [ ] Mission and vision written (concise, memorable)
+- [ ] 3 messaging pillars with proof points
+- [ ] Tagline tested with target audience
+- [ ] Voice attributes defined (we are / we are not)
+- [ ] Tone guidelines per context (marketing, docs, support, error)
+- [ ] Logo in all formats (SVG, PNG, dark/light, icon-only)
+- [ ] Color palette with hex values + accessibility-tested contrast
+- [ ] Typography selected and licensed
+- [ ] Brand guidelines document created and shared
+- [ ] All touchpoints consistent (website, app, email, social)

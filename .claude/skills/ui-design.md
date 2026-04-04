@@ -63,3 +63,110 @@ description: Use when building UI components, layouts, styling, responsive desig
 - **Semantic colors**: success (green), warning (amber), error (red), info (blue)
 - Always define both light and dark mode variants
 - Use opacity variants (`bg-black/50`) for overlays
+
+## shadcn/ui + Radix Patterns
+
+### Setup
+```bash
+npx shadcn@latest init
+npx shadcn@latest add button input card dialog
+```
+
+### Component Usage
+```tsx
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+
+<Dialog>
+  <DialogTrigger asChild>
+    <Button variant="outline">Open</Button>
+  </DialogTrigger>
+  <DialogContent>
+    <h2>Dialog Title</h2>
+    <p>Content here</p>
+  </DialogContent>
+</Dialog>
+```
+
+### cn() Utility (tailwind-merge + clsx)
+```typescript
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+// Usage — safely merge conditional classes
+<div className={cn("p-4 rounded-lg", isActive && "bg-primary text-white", className)} />
+```
+
+## Accessibility (a11y) Testing
+
+### Automated Tools
+```bash
+# axe-core (most comprehensive)
+npm install -D @axe-core/playwright
+# In Playwright test:
+import AxeBuilder from "@axe-core/playwright"
+const results = await new AxeBuilder({ page }).analyze()
+expect(results.violations).toEqual([])
+
+# eslint-plugin-jsx-a11y (catch at lint time)
+npm install -D eslint-plugin-jsx-a11y
+```
+
+### Manual Testing Checklist
+- [ ] Navigate entire page with Tab only — logical order, visible focus
+- [ ] All images have meaningful alt text (or `alt=""` for decorative)
+- [ ] Color contrast ≥ 4.5:1 (text) / 3:1 (large text) — check with WebAIM contrast checker
+- [ ] Screen reader reads content logically (test with VoiceOver / NVDA)
+- [ ] Forms: every input has visible label, errors announced to screen reader
+- [ ] Modals trap focus and close on Escape
+- [ ] No content conveyed by color alone
+- [ ] Touch targets ≥ 44x44px on mobile
+- [ ] `prefers-reduced-motion` respected for animations
+- [ ] `lang` attribute set on `<html>` tag
+
+### ARIA Quick Reference
+```html
+<!-- Only use ARIA when native HTML can't express the semantics -->
+<button aria-label="Close dialog">×</button>
+<div role="alert">Error: invalid email</div>
+<nav aria-label="Main navigation">...</nav>
+<div aria-live="polite">3 results found</div>  <!-- dynamic content -->
+<button aria-expanded="false" aria-controls="menu-1">Menu</button>
+```
+
+## Dark Mode Implementation
+
+```tsx
+// Tailwind: class-based dark mode
+// tailwind.config.js: darkMode: "class"
+
+// Theme toggle
+function ThemeToggle() {
+  const [theme, setTheme] = useState<"light" | "dark">("light")
+  
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark")
+  }, [theme])
+  
+  return <button onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Toggle</button>
+}
+
+// Usage in components
+<div className="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-50">
+```
+
+## UI Design Verification
+
+- [ ] Responsive: works on 320px (small phone) to 2560px (ultrawide)
+- [ ] Dark mode: all surfaces, text, borders have dark variants
+- [ ] Loading states: skeleton or spinner for every async operation
+- [ ] Empty states: helpful message + CTA when no data
+- [ ] Error states: clear message + recovery action
+- [ ] Focus visible on all interactive elements
+- [ ] Touch targets ≥ 44px on mobile
+- [ ] No horizontal scroll on any breakpoint
+- [ ] Animations respect `prefers-reduced-motion`

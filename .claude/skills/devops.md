@@ -150,3 +150,124 @@ development → staging → production
 - Same Docker image across all environments
 - Environment-specific config via env vars only
 - Never promote by rebuilding — promote the artifact
+
+## Kubernetes Essentials
+
+```yaml
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: my-app }
+  template:
+    metadata:
+      labels: { app: my-app }
+    spec:
+      containers:
+        - name: app
+          image: my-app:1.2.3
+          ports: [{ containerPort: 3000 }]
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+          livenessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet: { path: /ready, port: 3000 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+spec:
+  selector: { app: my-app }
+  ports: [{ port: 80, targetPort: 3000 }]
+```
+
+### kubectl Quick Reference
+```bash
+kubectl get pods                          # list pods
+kubectl logs -f deploy/my-app             # stream logs
+kubectl exec -it pod/my-app-xxx -- sh     # shell into pod
+kubectl rollout restart deploy/my-app     # restart
+kubectl rollout undo deploy/my-app        # rollback
+kubectl scale deploy/my-app --replicas=5  # scale
+kubectl top pods                          # resource usage
+```
+
+## Infrastructure as Code (Terraform)
+
+```hcl
+# main.tf — example: AWS S3 + CloudFront
+resource "aws_s3_bucket" "frontend" {
+  bucket = "my-app-frontend"
+}
+
+resource "aws_cloudfront_distribution" "cdn" {
+  origin {
+    domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
+    origin_id   = "s3-frontend"
+  }
+  enabled             = true
+  default_root_object = "index.html"
+  # ...
+}
+```
+
+```bash
+terraform init      # install providers
+terraform plan      # preview changes
+terraform apply     # apply changes
+terraform destroy   # tear down (careful!)
+```
+
+## Secrets Management Tools
+
+| Tool | Best for | Pricing |
+|------|----------|---------|
+| **AWS Secrets Manager** | AWS-native apps | $0.40/secret/month |
+| **HashiCorp Vault** | Multi-cloud, on-prem | Open source / Enterprise |
+| **Doppler** | Developer-friendly | Free tier |
+| **1Password CLI** | Small teams | From $4/user/month |
+| **SOPS** | Git-encrypted secrets | Free (Mozilla) |
+
+### SOPS Example (encrypt secrets in git)
+```bash
+sops --encrypt --age $(age-keygen -y key.txt) secrets.yaml > secrets.enc.yaml
+sops --decrypt secrets.enc.yaml  # decrypt in CI/CD
+```
+
+## Structured Logging
+
+```python
+# Python (structlog)
+import structlog
+logger = structlog.get_logger()
+logger.info("order_created", order_id="abc-123", user_id="u-456", total=99.99)
+# Output: {"event": "order_created", "order_id": "abc-123", "user_id": "u-456", "total": 99.99, "timestamp": "..."}
+```
+
+```typescript
+// Node.js (pino)
+import pino from "pino"
+const logger = pino()
+logger.info({ orderId: "abc-123", userId: "u-456", total: 99.99 }, "order_created")
+```
+
+## DevOps Checklist
+
+- [ ] Dockerfile uses multi-stage build, non-root user, pinned base image
+- [ ] CI runs lint + test + build + security scan on every PR
+- [ ] Secrets stored in secrets manager (not env files in production)
+- [ ] Health and readiness endpoints implemented
+- [ ] Structured JSON logging with correlation IDs
+- [ ] Alerts configured for error rate, latency, resource usage
+- [ ] Rollback procedure documented and tested
+- [ ] Backups automated and restore tested
+- [ ] Same artifact deployed to all environments
+- [ ] Infrastructure defined as code (Terraform, Pulumi, CDK)

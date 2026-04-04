@@ -100,6 +100,107 @@ test("submit button calls onSubmit", () => {
 })
 ```
 
+## E2E Testing (Playwright)
+
+```typescript
+import { test, expect } from "@playwright/test"
+
+test("user can sign up and see dashboard", async ({ page }) => {
+  await page.goto("/signup")
+  await page.fill('[name="email"]', "test@example.com")
+  await page.fill('[name="password"]', "SecureP@ss123")
+  await page.click('button[type="submit"]')
+  
+  await expect(page).toHaveURL("/dashboard")
+  await expect(page.getByRole("heading")).toContainText("Welcome")
+})
+```
+
+### Playwright Setup
+```bash
+npm init playwright@latest
+npx playwright test                    # run all
+npx playwright test --ui               # interactive UI
+npx playwright test --project=chromium # single browser
+npx playwright codegen localhost:3000  # record actions
+```
+
+### Cypress Alternative
+```bash
+npx cypress open     # interactive
+npx cypress run      # headless CI
+```
+
+## Snapshot & Visual Regression
+
+```typescript
+// Component snapshot (Vitest)
+import { render } from "@testing-library/react"
+test("Button matches snapshot", () => {
+  const { container } = render(<Button>Click</Button>)
+  expect(container).toMatchSnapshot()
+})
+
+// Visual regression (Playwright)
+test("homepage visual", async ({ page }) => {
+  await page.goto("/")
+  await expect(page).toHaveScreenshot("homepage.png", { maxDiffPixels: 100 })
+})
+```
+
+## Coverage Strategy
+
+```bash
+# Python
+pytest --cov=app --cov-report=html --cov-fail-under=80
+
+# JavaScript/TypeScript
+vitest run --coverage
+# or
+npx c8 node --test
+```
+
+| Coverage target | When |
+|----------------|------|
+| 80%+ lines | Most projects — good balance |
+| 90%+ lines | Critical systems (payments, auth) |
+| 100% branches | State machines, parsers |
+| Don't chase | 100% lines everywhere — diminishing returns |
+
+Focus coverage on **business logic**, not boilerplate/config.
+
+## Testing Tools Reference
+
+| Language | Unit | Integration | E2E | Mocking |
+|----------|------|-------------|-----|---------|
+| **Python** | pytest | pytest + httpx | Playwright | unittest.mock, pytest-mock |
+| **TypeScript** | Vitest | Supertest | Playwright, Cypress | vi.fn(), msw |
+| **React** | Vitest + RTL | Storybook interaction | Playwright | msw (API mocks) |
+| **Go** | testing pkg | testcontainers | Playwright | gomock |
+
+### MSW (Mock Service Worker) — API Mocking for Frontend
+```typescript
+import { http, HttpResponse } from "msw"
+import { setupServer } from "msw/node"
+
+const server = setupServer(
+  http.get("/api/users", () => HttpResponse.json([{ id: 1, name: "Alice" }]))
+)
+beforeAll(() => server.listen())
+afterAll(() => server.close())
+```
+
+## Test Quality Checklist
+
+- [ ] Tests run in < 30 seconds (unit suite)
+- [ ] No test depends on another test's state
+- [ ] No hardcoded sleep/wait — use assertions with timeout
+- [ ] CI runs tests on every PR
+- [ ] Coverage report generated and tracked
+- [ ] Flaky tests are fixed within 48 hours or deleted
+- [ ] New features always include tests
+- [ ] Edge cases covered: empty, null, max, min, unicode, concurrent
+
 ## Red Flags
 
 - Test mirrors implementation line-by-line → test behavior instead

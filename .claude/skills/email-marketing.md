@@ -163,3 +163,48 @@ Cart abandoned → Wait 1 hour → "You left something behind"
 - **Double opt-in** — recommended for GDPR compliance
 - **No purchased lists** — ever
 - **Honor unsubscribes** — within 10 business days (legal requirement)
+
+## Deliverability
+
+### DNS Setup (Required)
+```
+# SPF — who can send on your behalf
+TXT  @  "v=spf1 include:_spf.google.com include:sendgrid.net ~all"
+
+# DKIM — cryptographic signature
+CNAME  s1._domainkey  s1.domainkey.u1234.wl567.sendgrid.net
+
+# DMARC — policy for failed checks
+TXT  _dmarc  "v=DMARC1; p=quarantine; rua=mailto:dmarc@example.com; pct=100"
+```
+
+### Deliverability Checklist
+- [ ] SPF, DKIM, DMARC all configured and passing
+- [ ] Sending domain matches From address
+- [ ] Warm up new domain/IP (start with 50/day, increase 2x weekly)
+- [ ] List hygiene: remove bounces, inactive (>6 months) subscribers
+- [ ] Spam score < 5 (check with mail-tester.com before sending)
+- [ ] Unsubscribe in first line of email (Gmail promotes this)
+- [ ] Text-to-image ratio ≥ 60:40 (too many images = spam folder)
+
+## Segmentation Strategies
+
+| Segment | Criteria | Use for |
+|---------|----------|---------|
+| **New users** | Signed up < 7 days | Welcome sequence |
+| **Active** | Used product this week | Feature announcements |
+| **At risk** | No login in 14 days | Re-engagement |
+| **Power users** | Top 10% by usage | Upsell, referral asks |
+| **Churned** | Cancelled/inactive 30+ days | Win-back campaigns |
+| **By plan** | Free / Pro / Enterprise | Tier-specific features |
+
+## Email Tools Comparison
+
+| Tool | Best for | Price |
+|------|----------|-------|
+| **Resend** | Developer-first, transactional | Free < 3K/month |
+| **Postmark** | Transactional reliability | From $15/month |
+| **ConvertKit** | Creators, newsletters | Free < 1K subs |
+| **Loops** | SaaS, product emails | Free < 1K contacts |
+| **Mailchimp** | Small business, simple | Free < 500 contacts |
+| **Customer.io** | Complex automation | From $100/month |

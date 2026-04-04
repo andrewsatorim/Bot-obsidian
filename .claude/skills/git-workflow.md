@@ -140,3 +140,100 @@ Recommendation: **Squash merge** for feature branches, keeps `main` history clea
 - Write `.gitignore` before first commit
 - Pull before push, rebase over merge for local branches
 - Tag releases: `git tag -a v1.0.0 -m "Release 1.0.0"`
+
+## Monorepo Workflow
+
+### Turborepo Setup
+```bash
+npx create-turbo@latest
+```
+
+```
+apps/
+├── web/          # Next.js frontend
+├── api/          # Backend service
+└── mobile/       # React Native
+packages/
+├── ui/           # Shared components
+├── config/       # Shared ESLint, TS configs
+└── types/        # Shared TypeScript types
+```
+
+### turbo.json
+```json
+{
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
+    "test": { "dependsOn": ["build"] },
+    "lint": {},
+    "dev": { "cache": false, "persistent": true }
+  }
+}
+```
+
+```bash
+turbo run build          # build all packages in dependency order
+turbo run test --filter=web  # test only web app
+turbo run lint --affected    # lint only changed packages
+```
+
+## Git Recovery Commands
+
+```bash
+# Undo last commit (keep changes)
+git reset --soft HEAD~1
+
+# Find lost commits
+git reflog
+
+# Restore deleted branch
+git checkout -b recovered-branch abc1234
+
+# Unstage file
+git restore --staged file.txt
+
+# Discard local changes to file (careful!)
+git restore file.txt
+
+# Cherry-pick commit from another branch
+git cherry-pick abc1234
+
+# Interactive rebase (reorder, squash, edit commits)
+git rebase -i HEAD~3
+
+# Bisect to find bug-introducing commit
+git bisect start
+git bisect bad          # current commit is bad
+git bisect good v1.0.0  # this tag was good
+# git will checkout commits for you to test
+git bisect reset        # when done
+```
+
+## Release Process
+
+```bash
+# Semantic versioning
+# MAJOR.MINOR.PATCH — 2.1.0
+# MAJOR: breaking changes
+# MINOR: new features (backwards compatible)
+# PATCH: bug fixes
+
+# Create release
+git tag -a v2.1.0 -m "Release 2.1.0: add OAuth support"
+git push origin v2.1.0
+
+# GitHub release (with changelog)
+gh release create v2.1.0 --generate-notes
+```
+
+## Git Workflow Checklist
+
+- [ ] Branch naming follows convention (`feat/`, `fix/`, `chore/`)
+- [ ] Commits follow Conventional Commits format
+- [ ] PR title matches commit convention
+- [ ] PR has description with summary + test plan
+- [ ] PR is under 400 lines changed
+- [ ] CI passes before merge
+- [ ] At least one approval before merge
+- [ ] Branch deleted after merge
+- [ ] Releases tagged with semantic versioning

@@ -128,3 +128,75 @@ components/
 3. **Constrained choices** — limit options to prevent inconsistency (3-5 font sizes, 5-6 spacing values)
 4. **Documentation** — every component has usage guidelines, do/don't examples
 5. **Visual regression testing** — screenshot tests catch unintended changes
+
+## Storybook
+
+### Setup
+```bash
+npx storybook@latest init
+npm run storybook  # opens at localhost:6006
+```
+
+### Story File
+```tsx
+// Button.stories.tsx
+import type { Meta, StoryObj } from "@storybook/react"
+import { Button } from "./Button"
+
+const meta: Meta<typeof Button> = {
+  component: Button,
+  tags: ["autodocs"],
+  argTypes: {
+    variant: { control: "select", options: ["primary", "secondary", "ghost"] },
+    size: { control: "select", options: ["sm", "md", "lg"] },
+  },
+}
+export default meta
+type Story = StoryObj<typeof Button>
+
+export const Primary: Story = { args: { variant: "primary", children: "Click me" } }
+export const Secondary: Story = { args: { variant: "secondary", children: "Cancel" } }
+export const Loading: Story = { args: { variant: "primary", loading: true, children: "Saving..." } }
+```
+
+### Visual Regression (Chromatic)
+```bash
+npx chromatic --project-token=YOUR_TOKEN
+# Captures screenshots of every story, diffs against baseline
+```
+
+## Component Versioning
+
+### Semantic Versioning for Components
+- **PATCH** (1.0.x) — bug fix, no API change
+- **MINOR** (1.x.0) — new prop or variant, backwards compatible
+- **MAJOR** (x.0.0) — breaking API change (renamed prop, removed variant)
+
+### Migration Guide Template
+```markdown
+## Migrating Button from v2 to v3
+
+### Breaking Changes
+- `color` prop renamed to `variant`
+- `size="xs"` removed (use `size="sm"` instead)
+
+### Migration Steps
+1. Find & replace: `color=` → `variant=`
+2. Find & replace: `size="xs"` → `size="sm"`
+
+### Codemod (automated)
+npx jscodeshift -t ./codemods/button-v3.ts src/
+```
+
+## Design System Audit Checklist
+
+- [ ] All colors defined as tokens (no hardcoded hex in components)
+- [ ] Typography scale: max 5-6 sizes used consistently
+- [ ] Spacing uses 4/8px grid only
+- [ ] All components have Storybook stories
+- [ ] Light and dark theme tokens defined
+- [ ] Components are accessible (keyboard, screen reader, contrast)
+- [ ] Component API is consistent (same prop names across components)
+- [ ] Visual regression tests catch unintended changes
+- [ ] Documentation includes do/don't examples
+- [ ] Versioned with changelog and migration guides
