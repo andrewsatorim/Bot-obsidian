@@ -347,13 +347,95 @@ def run_one(
 
 
 # ---------------------------------------------------------------------------
+# Risk-adjusted ranking
+# ---------------------------------------------------------------------------
+@dataclass
+class RankedResult:
+    """A backtest result annotated with its risk-adjusted rank."""
+    result: object             # the original RunRecord (or any metrics carrier)
+    sharpe: float
+    profit_factor: float       # float('inf') when undefined (no losing trades)
+    total_return_pct: float
+    max_drawdown_pct: float    # magnitude (always >= 0)
+    passed_dd_filter: bool
+    rank: int | None           # 1-based among survivors; None if filtered out
+    is_winner: bool
+
+
+def _result_metric(r: object, key: str):
+    """Read a metric from a RunRecord, a {'metrics': {...}} dict, or a flat dict."""
+    if hasattr(r, "metrics"):
+        m = r.metrics
+    elif isinstance(r, dict) and "metrics" in r:
+        m = r["metrics"]
+    elif isinstance(r, dict):
+        m = r
+    else:
+        m = getattr(r, "__dict__", {})
+    return m.get(key)
+
+
+def _num(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def rank_results(results: list, max_dd_threshold: float = -35.0) -> list[RankedResult]:
+    """Rank backtest results by a RISK-ADJUSTED score, not by raw return.
+
+    Steps:
+    1. Filter out configs whose max drawdown is worse than ``max_dd_threshold``
+       (default -35%). The threshold is given as a signed percentage; only its
+       magnitude matters, so -35.0 and 35.0 are equivalent — a result is rejected
+       when its drawdown magnitude exceeds 35%.
+    2. Among survivors, rank by Sharpe ratio (primary), with profit_factor as the
+       tie-breaker and total_return_pct only as a final, secondary tie-breaker.
+
+    Returns every result as a :class:`RankedResult`, survivors first (sorted best
+    to worst), then the drawdown-rejected ones (also sorted, but ``rank=None``).
+    The single best survivor is flagged ``is_winner=True``.
+    """
+    dd_limit = abs(max_dd_threshold)
+    ranked: list[RankedResult] = []
+    for r in results:
+        pf_raw = _result_metric(r, "profit_factor")
+        pf = float("inf") if pf_raw is None else _num(pf_raw)
+        dd = abs(_num(_result_metric(r, "max_drawdown_pct")))
+        ranked.append(RankedResult(
+            result=r,
+            sharpe=_num(_result_metric(r, "sharpe_ratio")),
+            profit_factor=pf,
+            total_return_pct=_num(_result_metric(r, "total_return_pct")),
+            max_drawdown_pct=dd,
+            passed_dd_filter=dd <= dd_limit,
+            rank=None,
+            is_winner=False,
+        ))
+
+    # Risk-adjusted sort key: Sharpe -> profit_factor -> total_return (all desc).
+    sort_key = lambda x: (x.sharpe, x.profit_factor, x.total_return_pct)  # noqa: E731
+
+    survivors = sorted((x for x in ranked if x.passed_dd_filter), key=sort_key, reverse=True)
+    rejected = sorted((x for x in ranked if not x.passed_dd_filter), key=sort_key, reverse=True)
+
+    for i, x in enumerate(survivors, start=1):
+        x.rank = i
+    if survivors:
+        survivors[0].is_winner = True
+
+    return survivors + rejected
+
+
+# ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
-def persist(records: list[RunRecord], meta: dict) -> str:
+def persist(ranked: list[RankedResult], meta: dict) -> str:
     os.makedirs(RESULTS_DIR, exist_ok=True)
     stamp = meta["timestamp"]
 
-    # Full JSON snapshot
+    # Full JSON snapshot (already ordered best-to-worst by rank_results)
     json_path = os.path.join(RESULTS_DIR, f"{stamp}.json")
     with open(json_path, "w", encoding="utf-8") as fh:
         json.dump(
@@ -361,19 +443,23 @@ def persist(records: list[RunRecord], meta: dict) -> str:
                 "meta": meta,
                 "runs": [
                     {
-                        "config": r.config, "strategy": r.strategy, "symbol": r.symbol,
-                        "timeframe": r.timeframe, "params": r.params, "metrics": r.metrics,
+                        "rank": x.rank, "is_winner": x.is_winner,
+                        "passed_dd_filter": x.passed_dd_filter,
+                        "config": x.result.config, "strategy": x.result.strategy,
+                        "symbol": x.result.symbol, "timeframe": x.result.timeframe,
+                        "params": x.result.params, "metrics": x.result.metrics,
                     }
-                    for r in records
+                    for x in ranked
                 ],
             },
             fh,
             indent=2,
         )
 
-    # Append to history.csv (flat: config params + metrics)
+    # Append to history.csv (flat: rank + config params + metrics)
     fieldnames = [
-        "timestamp", "source", "config", "strategy", "symbol", "timeframe",
+        "timestamp", "source", "rank", "is_winner", "passed_dd_filter",
+        "config", "strategy", "symbol", "timeframe",
         "leverage", "margin_pct", "atr_mult", "trailing_atr", "tp_ladder",
         "initial_equity", *METRIC_KEYS,
     ]
@@ -382,7 +468,8 @@ def persist(records: list[RunRecord], meta: dict) -> str:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         if write_header:
             writer.writeheader()
-        for r in records:
+        for x in ranked:
+            r = x.result
             ladder = "|".join(
                 f"+{tp['pnl_pct']:.4g}:{tp['close_pct']:.4g}{'^' if tp['move_sl_to_entry'] else ''}"
                 for tp in r.params["tp_levels"]
@@ -390,6 +477,9 @@ def persist(records: list[RunRecord], meta: dict) -> str:
             writer.writerow({
                 "timestamp": stamp,
                 "source": meta["source"],
+                "rank": x.rank if x.rank is not None else "",
+                "is_winner": x.is_winner,
+                "passed_dd_filter": x.passed_dd_filter,
                 "config": r.config,
                 "strategy": r.strategy,
                 "symbol": r.symbol,
@@ -408,23 +498,36 @@ def persist(records: list[RunRecord], meta: dict) -> str:
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
-def print_table(records: list[RunRecord]) -> None:
+def print_ranked_table(ranked: list[RankedResult], max_dd_threshold: float) -> None:
+    """Print results sorted by risk-adjusted rank, with the winner flagged.
+
+    Sort: Sharpe (primary) -> profit_factor -> total_return, after rejecting any
+    config whose max drawdown is worse than ``max_dd_threshold``.
+    """
     header = (
-        f"{'Config':<14} {'Strategy':<18} {'Trades':>6} {'WR':>6} {'PF':>7} "
-        f"{'Return':>9} {'MDD':>8} {'Sharpe':>7} {'Expect':>9}"
+        f"{'#':>3} {'Config':<14} {'Strategy':<18} {'Trades':>6} {'WR':>6} {'PF':>7} "
+        f"{'Return':>9} {'MDD':>8} {'Sharpe':>7} {'Expect':>9}  Flag"
     )
-    print("=" * len(header))
+    print(f"Ranking by risk-adjusted score (Sharpe > PF > return); "
+          f"max-DD filter = {max_dd_threshold:.1f}%")
+    print("=" * (len(header) + 4))
     print(header)
-    print("-" * len(header))
-    for r in records:
+    print("-" * (len(header) + 4))
+    for x in ranked:
+        r = x.result
         m = r.metrics
         pf = "inf" if m["profit_factor"] is None else f"{m['profit_factor']:.2f}"
+        if not x.passed_dd_filter:
+            rank_cell, flag = "  -", f"✗ DD>{abs(max_dd_threshold):.0f}%"
+        else:
+            rank_cell = f"{x.rank:>3}"
+            flag = "★ WINNER" if x.is_winner else ""
         print(
-            f"{r.config:<14} {r.strategy:<18} {m['total_trades']:>6} {m['win_rate']:>5.1%} {pf:>7}"
+            f"{rank_cell} {r.config:<14} {r.strategy:<18} {m['total_trades']:>6} {m['win_rate']:>5.1%} {pf:>7}"
             f" {m['total_return_pct']:>+8.2f}% {m['max_drawdown_pct']:>7.2f}% {m['sharpe_ratio']:>7.2f}"
-            f" {m['expectancy']:>+9.2f}"
+            f" {m['expectancy']:>+9.2f}  {flag}"
         )
-    print("=" * len(header))
+    print("=" * (len(header) + 4))
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -439,6 +542,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--exchange", default="okx", help="ccxt exchange id (ccxt source only)")
     p.add_argument("--candles", type=int, default=1500, help="Number of candles to load")
     p.add_argument("--equity", type=float, default=10_000.0, help="Initial equity")
+    p.add_argument("--max-dd", type=float, default=-35.0, dest="max_dd",
+                   help="Max-drawdown filter for ranking (signed %%, default -35.0)")
     return p.parse_args(argv)
 
 
@@ -475,6 +580,8 @@ def main(argv: list[str] | None = None) -> int:
             rec = run_one(config, strategy_name, bundles, args.symbol, args.equity)
             records.append(rec)
 
+    ranked = rank_results(records, max_dd_threshold=args.max_dd)
+
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     meta = {
         "timestamp": timestamp,
@@ -485,10 +592,11 @@ def main(argv: list[str] | None = None) -> int:
         "candles": len(bundles),
         "initial_equity": args.equity,
         "configs": selected,
+        "max_dd_threshold": args.max_dd,
     }
 
-    print_table(records)
-    json_path = persist(records, meta)
+    print_ranked_table(ranked, args.max_dd)
+    json_path = persist(ranked, meta)
     print(f"\nSaved {len(records)} runs:")
     print(f"  JSON:    {json_path}")
     print(f"  history: {HISTORY_CSV}")
