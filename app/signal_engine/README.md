@@ -4,22 +4,24 @@ A **private** signal engine that scans the configured universe, scores setups,
 computes honest leverage risk, and sends a **text-only** alert to a private
 Telegram channel. It is intentionally separate from the sellable main bot.
 
-## ⚠️ KNOWN LIMITATION — Coinglass not wired yet (do before real use)
+## Data sources & the Coinglass-dependent factors
 
-Until a Coinglass heatmap / OI feed is wired into `scripts/run_signal_engine.py`,
-the engine builds features from the **ccxt feed only**. That feed does not
-populate the liquidation heatmap and often returns little/no open-interest
-history, so:
+Two of the four quality factors need data the plain ccxt feed does not provide:
 
-- factor **(c) liquidity zone** (`liquidation_above` / `liquidation_below`) and
-- factor **(d) OI imbalance** (`oi_delta` / `oi_trend`)
+- factor **(c) liquidity zone** — Coinglass liquidation heatmap
+  (`liquidation_above` = shorts' liquidations, `liquidation_below` = longs'), and
+- factor **(d) OI imbalance** — Coinglass realtime open interest.
 
-evaluate on **incomplete data**. When those fields are zero/empty the factors
-read as *not matched*, which **depresses or distorts the setup quality score** —
-in practice it tends to **overstate** quality for setups that only pass the
-remaining factors. **Treat the quality % as provisional until Coinglass is
-connected.** Tracked for Stage 6.6 (Coinglass + deploy). Do not run this against
-real money for sizing decisions before that is done.
+**Coinglass (v4) is wired in `scripts/run_signal_engine.py`** and activates when
+`SIGNAL_COINGLASS_API_KEY` is set (see `market_data.CoinglassProvider`).
+
+**Honest fallback (no key, or a fetch error):** those two factors are reported as
+`⚠️ данные недоступны` and **never counted toward setup quality** — they are
+tri-state `None`, not a fabricated pass and not a misleading fail. Quality is
+`matched / 4`, so without Coinglass the score is honestly **capped at 50%**
+(only the signal + regime factors can fire) rather than overstated. Set the key
+to get the full four-factor confirmation before relying on the quality % for
+sizing decisions.
 
 ## Isolation contract (enforced by `tests/test_signal_engine_isolation.py`)
 
@@ -44,7 +46,8 @@ real money for sizing decisions before that is done.
 Separate process, separate config, separate Telegram token:
 
 ```bash
-cp .env.signal.example .env.signal   # fill in SIGNAL_TELEGRAM_* (private bot)
+cp .env.signal.example .env.signal   # SIGNAL_TELEGRAM_* (private bot);
+                                     # SIGNAL_COINGLASS_API_KEY for factors (c)/(d)
 python scripts/run_signal_engine.py
 ```
 
