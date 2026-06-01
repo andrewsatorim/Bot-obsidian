@@ -11,6 +11,7 @@ from app.models.market_snapshot import MarketSnapshot
 from app.models.signal import Signal
 from app.ports.strategy_port import StrategyPort
 from app.signal_engine.config import SignalSettings
+from app.signal_engine.market_data import FactorAvailability, SymbolFeed
 from app.signal_engine.setups import (
     quality_from_factors,
     score_factors,
@@ -110,14 +111,15 @@ class _StubFeatureEngine:
         return self._features
 
 
-def _bundle() -> MarketDataBundle:
-    return MarketDataBundle(
+def _feed(availability: FactorAvailability | None = None) -> SymbolFeed:
+    bundle = MarketDataBundle(
         market=MarketSnapshot(
             symbol="BTC/USDT:USDT", price=100.0, volume=1.0, bid=99.9, ask=100.1, timestamp=1
         ),
         price_history=[100.0],
         volume_history=[1.0],
     )
+    return SymbolFeed(bundle=bundle, availability=availability or FactorAvailability())
 
 
 def test_select_setups_threshold_filters(monkeypatch) -> None:
@@ -136,7 +138,7 @@ def test_select_setups_threshold_filters(monkeypatch) -> None:
     )
 
     # quality == 1.0 passes a 0.5 threshold...
-    passing = select_setups({"BTC/USDT:USDT": _bundle()}, SignalSettings(min_quality=0.5), fe)
+    passing = select_setups({"BTC/USDT:USDT": _feed()}, SignalSettings(min_quality=0.5), fe)
     assert len(passing) == 1
     assert passing[0].direction == "LONG"
     assert passing[0].quality == 1.0
@@ -146,7 +148,7 @@ def test_select_setups_threshold_filters(monkeypatch) -> None:
         regime=RegimeLabel.TREND_UP, liq_above=10, liq_below=9_000, oi_delta=20, oi_trend=0.05
     )  # liquidity on the wrong side for a LONG -> 3/4 = 0.75
     fe_partial = _StubFeatureEngine(three_of_four)
-    none = select_setups({"BTC/USDT:USDT": _bundle()}, SignalSettings(min_quality=1.0), fe_partial)
+    none = select_setups({"BTC/USDT:USDT": _feed()}, SignalSettings(min_quality=1.0), fe_partial)
     assert none == []
 
 
@@ -159,4 +161,21 @@ def test_select_setups_skips_when_no_signal(monkeypatch) -> None:
     monkeypatch.setitem(
         setups_mod.STRATEGY_FACTORIES, "TrendFollowing", lambda s: _StubStrategy(None)
     )
-    assert select_setups({"BTC/USDT:USDT": _bundle()}, SignalSettings(), fe) == []
+    assert select_setups({"BTC/USDT:USDT": _feed()}, SignalSettings(), fe) == []
+
+
+def test_unavailable_data_marks_factors_none_not_failed() -> None:
+    """No liquidity/OI data -> those factors are None ('unavailable'), not False."""
+    settings = SignalSettings(min_confidence=0.4)
+    features = _features(
+        regime=RegimeLabel.TREND_UP, liq_above=0, liq_below=0, oi_delta=0, oi_trend=0
+    )
+    unavailable = FactorAvailability(liquidity=False, oi=False)
+    factors = score_factors(features, _signal(Direction.LONG, 0.8), settings, unavailable)
+
+    assert factors["signal"] is True
+    assert factors["regime"] is True
+    assert factors["liquidity"] is None  # not False — we simply could not evaluate it
+    assert factors["oi"] is None
+    # Quality counts matched / 4, so missing data lowers the ceiling to 0.5.
+    assert quality_from_factors(factors) == 0.5
