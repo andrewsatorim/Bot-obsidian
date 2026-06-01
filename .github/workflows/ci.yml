@@ -21,9 +21,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-        with:
-          python-version: "3.11"
-      - run: uv venv
+      # setup-uv ignores python-version; pin the interpreter on uv venv instead
+      # (uv fetches a managed CPython 3.11 — the project's minimum supported).
+      - run: uv venv --python 3.11
       - run: uv pip install ".[dev]"
       # Isolation test on its own first, so a signal-engine boundary breach is
       # unmistakable in the logs (forward + reverse import-graph invariants).
@@ -44,9 +44,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-        with:
-          python-version: "3.11"
-      - run: uv venv
+      # setup-uv ignores python-version; pin the interpreter on uv venv instead
+      # (uv fetches a managed CPython 3.11 — the project's minimum supported).
+      - run: uv venv --python 3.11
       - run: uv pip install ruff
       - name: Lint new code (strict)
         run: >-
@@ -68,9 +68,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-        with:
-          python-version: "3.11"
-      - run: uv venv
+      # setup-uv ignores python-version; pin the interpreter on uv venv instead
+      # (uv fetches a managed CPython 3.11 — the project's minimum supported).
+      - run: uv venv --python 3.11
       - run: uv pip install ".[dev]"
       - name: Typecheck new code (strict)
         run: uv run mypy app/signal_engine/ --ignore-missing-imports
