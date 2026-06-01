@@ -10,14 +10,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Protocol
 
 from app.analytics.feature_engine import FeatureEngine
-from app.models.market_data_bundle import MarketDataBundle
 from app.signal_engine.config import SignalSettings
+from app.signal_engine.market_data import MarketDataProvider, SymbolFeed
 from app.signal_engine.notifier import TelegramSignalNotifier
 from app.signal_engine.risk import SignalRisk, compute_risk
-from app.signal_engine.setups import SignalSetup, select_setups
+from app.signal_engine.setups import FACTOR_KEYS, SignalSetup, select_setups
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +28,6 @@ _FACTOR_LABELS = {
 }
 
 
-class MarketDataSource(Protocol):
-    """Read-only market data provider (e.g. CcxtDataFeed). No execution surface."""
-
-    async def get_market_data(self, symbol: str) -> MarketDataBundle: ...
-
-
 def _fmt_price(value: float) -> str:
     """Compact price formatting that stays readable across BTC and alt prices."""
     if value >= 100:
@@ -44,14 +37,27 @@ def _fmt_price(value: float) -> str:
     return f"{value:.6f}"
 
 
+def _factor_line(key: str, state: bool | None) -> str:
+    """One factor row: ✅ matched, ➖ not matched, ⚠️ data unavailable."""
+    label = _FACTOR_LABELS[key]
+    if state is True:
+        return f"  ✅ {label}"
+    if state is False:
+        return f"  ➖ {label}"
+    return f"  ⚠️ {label} — данные недоступны"
+
+
 def format_signal_message(setup: SignalSetup, risk: SignalRisk) -> str:
     """Render a setup + risk into a concise Russian Telegram message."""
     arrow = "🟢 LONG" if setup.direction == "LONG" else "🔴 SHORT"
-    matched = [_FACTOR_LABELS[k] for k in setup.factors if setup.factors[k]]
+    matched = sum(1 for v in setup.factors.values() if v is True)
 
     lines = [
         f"{arrow}  {setup.symbol}",
-        f"Качество сетапа: {setup.quality * 100:.0f}%  ({', '.join(matched)})",
+        f"Качество сетапа: {setup.quality * 100:.0f}%  ({matched}/{len(FACTOR_KEYS)} факторов)",
+    ]
+    lines += [_factor_line(k, setup.factors[k]) for k in FACTOR_KEYS]
+    lines += [
         f"Стратегия даёт силу: {setup.strength:.2f} | режим: {setup.regime}",
         "",
         f"Вход:  {_fmt_price(risk.entry)}",
@@ -89,27 +95,27 @@ class SignalEngine:
         self,
         settings: SignalSettings,
         notifier: TelegramSignalNotifier,
-        data_source: MarketDataSource,
+        provider: MarketDataProvider,
         feature_engine: FeatureEngine | None = None,
     ) -> None:
         self._settings = settings
         self._notifier = notifier
-        self._data_source = data_source
+        self._provider = provider
         self._feature_engine = feature_engine or FeatureEngine()
 
-    async def _collect_bundles(self) -> dict[str, MarketDataBundle]:
-        bundles: dict[str, MarketDataBundle] = {}
+    async def _collect_feeds(self) -> dict[str, SymbolFeed]:
+        feeds: dict[str, SymbolFeed] = {}
         for symbol in self._settings.symbols:
             try:
-                bundles[symbol] = await self._data_source.get_market_data(symbol)
+                feeds[symbol] = await self._provider.fetch(symbol)
             except Exception:
                 logger.exception("failed to fetch market data for %s", symbol)
-        return bundles
+        return feeds
 
     async def run_once(self) -> list[SignalSetup]:
         """One scan pass: collect data, select setups, notify on each passing one."""
-        bundles = await self._collect_bundles()
-        setups = select_setups(bundles, self._settings, self._feature_engine)
+        feeds = await self._collect_feeds()
+        setups = select_setups(feeds, self._settings, self._feature_engine)
         for setup in setups:
             risk = compute_risk(setup, self._settings)
             await self._notifier.send(format_signal_message(setup, risk))
