@@ -105,6 +105,8 @@ class BacktestConfig:
     trailing_atr: float        # trailing stop in ATR units (0 = disabled)
     timeframe: str             # candle timeframe, e.g. "30m"
     strategies: list[str] | str  # registry names, or "ALL"
+    fee_pct: float = 0.0        # taker fee per fill (0 = MEXC zero-fee pairs)
+    slippage_pct: float = 0.0005  # adverse fill cost per fill (~half-spread)
 
     def resolved_strategies(self) -> list[str]:
         if self.strategies == "ALL":
@@ -327,6 +329,8 @@ def run_one(
         leverage=config.leverage,
         tp_levels=config.tp_levels,
         trailing_stop_atr=config.trailing_atr,
+        fee_pct=config.fee_pct,
+        slippage_pct=config.slippage_pct,
     )
     result = engine.run(bundles)
     return RunRecord(
@@ -339,6 +343,8 @@ def run_one(
             "margin_pct": config.margin_pct,
             "atr_mult": config.atr_mult,
             "trailing_atr": config.trailing_atr,
+            "fee_pct": config.fee_pct,
+            "slippage_pct": config.slippage_pct,
             "tp_levels": config.tp_as_dicts(),
             "initial_equity": initial_equity,
         },
@@ -460,7 +466,8 @@ def persist(ranked: list[RankedResult], meta: dict) -> str:
     fieldnames = [
         "timestamp", "source", "rank", "is_winner", "passed_dd_filter",
         "config", "strategy", "symbol", "timeframe",
-        "leverage", "margin_pct", "atr_mult", "trailing_atr", "tp_ladder",
+        "leverage", "margin_pct", "atr_mult", "trailing_atr",
+        "fee_pct", "slippage_pct", "tp_ladder",
         "initial_equity", *METRIC_KEYS,
     ]
     write_header = not os.path.exists(HISTORY_CSV)
@@ -488,6 +495,8 @@ def persist(ranked: list[RankedResult], meta: dict) -> str:
                 "margin_pct": r.params["margin_pct"],
                 "atr_mult": r.params["atr_mult"],
                 "trailing_atr": r.params["trailing_atr"],
+                "fee_pct": r.params["fee_pct"],
+                "slippage_pct": r.params["slippage_pct"],
                 "tp_ladder": ladder,
                 "initial_equity": r.params["initial_equity"],
                 **r.metrics,

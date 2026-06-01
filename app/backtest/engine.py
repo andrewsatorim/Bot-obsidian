@@ -165,7 +165,8 @@ class BacktestResult:
         return "\n".join(lines)
 
 
-FEE_RATE = 0.001  # 0.1%
+FEE_RATE = 0.001  # 0.1% — legacy default, kept for scripts importing it
+DEFAULT_SLIPPAGE_PCT = 0.0005  # 0.05% adverse fill per side (~half a 0.1% spread)
 
 
 @dataclass
@@ -190,6 +191,8 @@ class BacktestEngine:
         leverage: float = 40.0,
         tp_levels: list[TPLevel] | None = None,
         trailing_stop_atr: float = 0.0,  # 0 = disabled, e.g. 1.618
+        fee_pct: float = 0.0,            # taker fee per fill (0 = MEXC zero-fee pairs)
+        slippage_pct: float = DEFAULT_SLIPPAGE_PCT,  # adverse fill cost per fill (~half-spread)
     ) -> None:
         self.analytics = analytics
         self.strategy = strategy
@@ -200,6 +203,12 @@ class BacktestEngine:
         self.leverage = leverage
         self.tp_levels = tp_levels or []
         self.trailing_stop_atr = trailing_stop_atr
+        # Transaction cost charged on notional at EVERY fill (entry + each exit leg).
+        # Modeling slippage this way captures the spread cost the prior version
+        # ignored: a round trip costs ~2 x (fee_pct + slippage_pct) of notional.
+        self.fee_pct = fee_pct
+        self.slippage_pct = slippage_pct
+        self._cost_rate = fee_pct + slippage_pct
 
     def run(self, data: list[MarketDataBundle]) -> BacktestResult:
         result = BacktestResult(initial_equity=self.initial_equity)
@@ -250,7 +259,7 @@ class BacktestEngine:
 
                     if decision.allow_trade:
                         qty = self._compute_size(equity, features.atr, decision.risk_multiplier, price)
-                        entry_fee = price * qty * FEE_RATE
+                        entry_fee = price * qty * self._cost_rate
                         position = _OpenPosition(
                             direction=signal.direction,
                             entry_price=price,
@@ -329,7 +338,7 @@ class BacktestEngine:
                 if tp.close_pct >= 0.999:
                     # Full close — this is the final TP
                     total_pnl = pnl + pos.realized_pnl
-                    fee = price * pos.quantity * FEE_RATE
+                    fee = price * pos.quantity * self._cost_rate
                     return True, total_pnl, fee, f"TP{i}"
 
                 # Partial close
@@ -339,7 +348,7 @@ class BacktestEngine:
                     partial_pnl = (price - pos.entry_price) * close_qty
                 else:
                     partial_pnl = (pos.entry_price - price) * close_qty
-                fee = price * close_qty * FEE_RATE
+                fee = price * close_qty * self._cost_rate
                 pos.quantity -= close_qty
                 pos.realized_pnl += partial_pnl - fee
 
@@ -357,12 +366,12 @@ class BacktestEngine:
         )
         if hit_sl:
             total_pnl = pnl + pos.realized_pnl
-            fee = price * pos.quantity * FEE_RATE
+            fee = price * pos.quantity * self._cost_rate
             return True, total_pnl, fee, "SL"
 
         if force:
             total_pnl = pnl + pos.realized_pnl
-            fee = price * pos.quantity * FEE_RATE
+            fee = price * pos.quantity * self._cost_rate
             return True, total_pnl, fee, "FORCE"
 
         return False, 0.0, 0.0, ""
