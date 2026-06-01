@@ -65,9 +65,16 @@ class TestOIDivergence:
 
     def test_short_on_bullish_divergence(self):
         s = OIDivergenceStrategy(symbol="BTC")
+        # Valid bullish-divergence short setup: must clear the full filter stack —
+        # oi_trend strictly < -0.03, oi_delta < 0, volume_ratio >= 1.3, volume_spike,
+        # spread/slippage/volatility in range, funding aligned (zscore >= 0 for SHORT).
         f = _features(
             regime_label=RegimeLabel.TREND_UP,
-            oi_trend=-0.03,  # OI declining while price up
+            oi_trend=-0.05,      # OI declining while price up
+            oi_delta=-100.0,     # OI dropping right now
+            volume_ratio=1.5,    # >= min_volume_ratio (1.3)
+            volume_spike=True,   # require_volume_spike
+            funding_zscore=0.5,  # SHORT requires funding_zscore >= 0
         )
         sig = s.generate_signal(f)
         assert sig is not None
@@ -75,9 +82,15 @@ class TestOIDivergence:
 
     def test_long_on_bearish_divergence(self):
         s = OIDivergenceStrategy(symbol="BTC")
+        # Valid bearish-divergence long setup: same filter stack, but for LONG the
+        # funding alignment requires funding_zscore <= 0.
         f = _features(
             regime_label=RegimeLabel.TREND_DOWN,
-            oi_trend=-0.03,
+            oi_trend=-0.05,
+            oi_delta=-100.0,
+            volume_ratio=1.5,
+            volume_spike=True,
+            funding_zscore=-0.5,  # LONG requires funding_zscore <= 0
         )
         sig = s.generate_signal(f)
         assert sig is not None

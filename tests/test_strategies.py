@@ -45,7 +45,8 @@ class TestBreakoutStrategy:
 
     def test_rejected_low_oi(self):
         s = BreakoutStrategy(symbol="BTC")
-        f = _features(regime_label=RegimeLabel.TREND_UP, volume_spike=True, oi_trend=0.01)
+        # oi_trend below OI_TREND_MIN (0.01) -> breakout not confirmed by OI expansion
+        f = _features(regime_label=RegimeLabel.TREND_UP, volume_spike=True, oi_trend=0.005)
         assert s.generate_signal(f) is None
 
 
