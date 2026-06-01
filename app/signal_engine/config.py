@@ -32,6 +32,11 @@ class SignalSettings(BaseSettings):
     leverages: list[float] = [20.0, 30.0, 40.0]            # leverage scenarios to report
     fee_pct: float = Field(default=0.0005, ge=0)           # taker fee per side (round-trip x2)
 
+    # Coinglass (v4) — feeds the liquidation-heatmap and OI factors with real
+    # data. If empty, those factors are reported as "data unavailable" (never
+    # counted as matched) and setup quality is scored on the remaining factors.
+    coinglass_api_key: str = ""
+
     # Private Telegram channel — distinct token/chat from the main bot.
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
