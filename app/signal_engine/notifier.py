@@ -36,7 +36,7 @@ class TelegramSignalNotifier:
 
             if self._bot is None:
                 self._bot = Bot(token=self._bot_token)
-            await self._bot.send_message(chat_id=self._chat_id, text=text)  # type: ignore[union-attr]
+            await self._bot.send_message(chat_id=self._chat_id, text=text)  # type: ignore[attr-defined]
             logger.debug("signal message sent to %s", self._chat_id)
         except Exception:
             logger.exception("failed to send signal telegram message")
