@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="812" viewBox="0 0 375 812">
+  <defs>
+    <filter id="scanlines">
+      <feImage width="375" height="812" result="lines"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="375" height="812" fill="#0c0c0c"/>
+
+  <!-- Scanline effect (subtle) -->
+  <g opacity="0.03">
+    <line x1="0" y1="0" x2="375" y2="0" stroke="#fff" stroke-width="1" stroke-dasharray="375" transform="translate(0,2)"/>
+    <line x1="0" y1="0" x2="375" y2="0" stroke="#fff" stroke-width="1" stroke-dasharray="375" transform="translate(0,6)"/>
+    <line x1="0" y1="0" x2="375" y2="0" stroke="#fff" stroke-width="1" stroke-dasharray="375" transform="translate(0,10)"/>
+    <line x1="0" y1="0" x2="375" y2="0" stroke="#fff" stroke-width="1" stroke-dasharray="375" transform="translate(0,14)"/>
+  </g>
+
+  <!-- Top bar -->
+  <rect x="0" y="0" width="375" height="32" fill="#111111"/>
+  <line x1="0" y1="32" x2="375" y2="32" stroke="#222"/>
+  <text x="12" y="21" fill="#00ff88" font-family="Courier New,monospace" font-size="13" font-weight="700">[OBSIDIAN]</text>
+  <text x="105" y="21" fill="#666" font-family="Courier New,monospace" font-size="11">v3.0</text>
+  <!-- Blinking dot -->
+  <circle cx="330" cy="16" r="3" fill="#00ff88"/>
+  <rect x="340" y="9" width="26" height="14" rx="0" fill="none" stroke="#00ff88"/>
+  <text x="345" y="20" fill="#00ff88" font-family="Courier New,monospace" font-size="9" font-weight="700">PAPER</text>
+
+  <!-- Equity block -->
+  <rect x="0" y="33" width="375" height="85" fill="#111111"/>
+  <line x1="0" y1="118" x2="375" y2="118" stroke="#222"/>
+  <text x="12" y="52" fill="#666" font-family="Courier New,monospace" font-size="10">equity</text>
+  <text x="12" y="82" fill="#00ff88" font-family="Courier New,monospace" font-size="28" font-weight="700">$12,847.32</text>
+  <text x="310" y="52" fill="#666" font-family="Courier New,monospace" font-size="10" text-anchor="end">daily pnl</text>
+  <text x="363" y="82" fill="#00ff88" font-family="Courier New,monospace" font-size="16" font-weight="700" text-anchor="end">+$847.32</text>
+  <!-- Meta -->
+  <text x="12" y="108" fill="#666" font-family="Courier New,monospace" font-size="11">peak <tspan fill="#ccc">$13,100</tspan>  trades <tspan fill="#ccc">47</tspan>  win <tspan fill="#ccc">68%</tspan>  sharpe <tspan fill="#ccc">2.1</tspan></text>
+
+  <!-- Drawdown gauge -->
+  <rect x="0" y="119" width="375" height="28" fill="#0c0c0c"/>
+  <line x1="0" y1="147" x2="375" y2="147" stroke="#222"/>
+  <text x="12" y="137" fill="#666" font-family="Courier New,monospace" font-size="10">DRAWDOWN</text>
+  <rect x="90" y="129" width="200" height="8" fill="#1a1a1a" stroke="#222"/>
+  <rect x="90" y="129" width="46" height="8" fill="#00ff88"/>
+  <line x1="290" y1="127" x2="290" y2="139" stroke="#ff3355" stroke-width="1"/>
+  <text x="310" y="137" fill="#ccc" font-family="Courier New,monospace" font-size="10" text-anchor="start">3.4/15%</text>
+
+  <!-- Positions table header -->
+  <rect x="0" y="148" width="375" height="22" fill="#111111"/>
+  <text x="12" y="163" fill="#00ccff" font-family="Courier New,monospace" font-size="11" font-weight="700">&#9654; POSITIONS (3/4)</text>
+
+  <!-- Table header -->
+  <text x="12" y="185" fill="#666" font-family="Courier New,monospace" font-size="10">PAIR</text>
+  <text x="65" y="185" fill="#666" font-family="Courier New,monospace" font-size="10">SIDE</text>
+  <text x="125" y="185" fill="#666" font-family="Courier New,monospace" font-size="10">ENTRY</text>
+  <text x="210" y="185" fill="#666" font-family="Courier New,monospace" font-size="10">SL</text>
+  <text x="290" y="185" fill="#666" font-family="Courier New,monospace" font-size="10">PNL</text>
+  <line x1="12" y1="189" x2="363" y2="189" stroke="#222" stroke-dasharray="4,3"/>
+
+  <!-- BTC row -->
+  <text x="12" y="208" fill="#ccc" font-family="Courier New,monospace" font-size="12">BTC</text>
+  <text x="65" y="208" fill="#00ff88" font-family="Courier New,monospace" font-size="12" font-weight="700">LONG</text>
+  <text x="125" y="208" fill="#ccc" font-family="Courier New,monospace" font-size="12">84,230</text>
+  <text x="210" y="208" fill="#ccc" font-family="Courier New,monospace" font-size="12">83,100</text>
+  <text x="290" y="208" fill="#00ff88" font-family="Courier New,monospace" font-size="12" font-weight="700">+$412.80</text>
+  <line x1="12" y1="215" x2="363" y2="215" stroke="#222"/>
+
+  <!-- ETH row -->
+  <text x="12" y="234" fill="#ccc" font-family="Courier New,monospace" font-size="12">ETH</text>
+  <text x="65" y="234" fill="#ff3355" font-family="Courier New,monospace" font-size="12" font-weight="700">SHRT</text>
+  <text x="125" y="234" fill="#ccc" font-family="Courier New,monospace" font-size="12">1,920.4</text>
+  <text x="210" y="234" fill="#ccc" font-family="Courier New,monospace" font-size="12">1,985.0</text>
+  <text x="290" y="234" fill="#00ff88" font-family="Courier New,monospace" font-size="12" font-weight="700">+$215.40</text>
+  <line x1="12" y1="241" x2="363" y2="241" stroke="#222"/>
+
+  <!-- SOL row -->
+  <text x="12" y="260" fill="#ccc" font-family="Courier New,monospace" font-size="12">SOL</text>
+  <text x="65" y="260" fill="#00ff88" font-family="Courier New,monospace" font-size="12" font-weight="700">LONG</text>
+  <text x="125" y="260" fill="#ccc" font-family="Courier New,monospace" font-size="12">142.30</text>
+  <text x="210" y="260" fill="#ccc" font-family="Courier New,monospace" font-size="12">138.80</text>
+  <text x="290" y="260" fill="#ff3355" font-family="Courier New,monospace" font-size="12" font-weight="700">-$78.30</text>
+
+  <!-- Market section -->
+  <line x1="0" y1="278" x2="375" y2="278" stroke="#222"/>
+  <rect x="0" y="279" width="375" height="22" fill="#111111"/>
+  <text x="12" y="294" fill="#00ccff" font-family="Courier New,monospace" font-size="11" font-weight="700">&#9654; MARKET</text>
+
+  <!-- Market grid -->
+  <!-- BTC -->
+  <rect x="0" y="302" width="187" height="76" fill="#0c0c0c" stroke="#222"/>
+  <text x="12" y="322" fill="#ccc" font-family="Courier New,monospace" font-size="13" font-weight="700">BTC</text>
+  <text x="12" y="344" fill="#00ff88" font-family="Courier New,monospace" font-size="16" font-weight="700">85,342.10</text>
+  <text x="12" y="360" fill="#666" font-family="Courier New,monospace" font-size="10">OI +2.1%  FR 0.012%</text>
+  <text x="12" y="374" fill="#00ff88" font-family="Courier New,monospace" font-size="10">TREND_UP</text>
+
+  <!-- ETH -->
+  <rect x="188" y="302" width="187" height="76" fill="#0c0c0c" stroke="#222"/>
+  <text x="200" y="322" fill="#ccc" font-family="Courier New,monospace" font-size="13" font-weight="700">ETH</text>
+  <text x="200" y="344" fill="#ff3355" font-family="Courier New,monospace" font-size="16" font-weight="700">1,892.44</text>
+  <text x="200" y="360" fill="#666" font-family="Courier New,monospace" font-size="10">OI -0.5%  FR 0.008%</text>
+  <text x="200" y="374" fill="#ff3355" font-family="Courier New,monospace" font-size="10">TREND_DN</text>
+
+  <!-- SOL -->
+  <rect x="0" y="379" width="187" height="76" fill="#0c0c0c" stroke="#222"/>
+  <text x="12" y="399" fill="#ccc" font-family="Courier New,monospace" font-size="13" font-weight="700">SOL</text>
+  <text x="12" y="421" fill="#00ff88" font-family="Courier New,monospace" font-size="16" font-weight="700">143.87</text>
+  <text x="12" y="437" fill="#666" font-family="Courier New,monospace" font-size="10">OI +1.4%  FR 0.015%</text>
+  <text x="12" y="451" fill="#ffcc00" font-family="Courier New,monospace" font-size="10">VOLATILE</text>
+
+  <!-- ADA -->
+  <rect x="188" y="379" width="187" height="76" fill="#0c0c0c" stroke="#222"/>
+  <text x="200" y="399" fill="#ccc" font-family="Courier New,monospace" font-size="13" font-weight="700">ADA</text>
+  <text x="200" y="421" fill="#666" font-family="Courier New,monospace" font-size="16" font-weight="700">0.6234</text>
+  <text x="200" y="437" fill="#666" font-family="Courier New,monospace" font-size="10">OI -0.1%  FR 0.003%</text>
+  <text x="200" y="451" fill="#666" font-family="Courier New,monospace" font-size="10">RANGE</text>
+
+  <!-- Signal Log -->
+  <line x1="0" y1="460" x2="375" y2="460" stroke="#222"/>
+  <rect x="0" y="461" width="375" height="22" fill="#111111"/>
+  <text x="12" y="476" fill="#00ccff" font-family="Courier New,monospace" font-size="11" font-weight="700">&#9654; SIGNAL LOG</text>
+
+  <!-- Log entry 1 -->
+  <text x="12" y="500" fill="#666" font-family="Courier New,monospace" font-size="11">14:32</text>
+  <text x="62" y="500" fill="#00ff88" font-family="Courier New,monospace" font-size="11" font-weight="700">OPEN</text>
+  <text x="110" y="500" fill="#ccc" font-family="Courier New,monospace" font-size="11">BTC LONG @ 84,230 str=0.87</text>
+  <!-- Filter tags -->
+  <rect x="62" y="506" width="62" height="14" fill="none" stroke="#00cc6a"/>
+  <text x="66" y="516" fill="#00cc6a" font-family="Courier New,monospace" font-size="9">OI_EXPAND</text>
+  <rect x="128" y="506" width="68" height="14" fill="none" stroke="#00cc6a"/>
+  <text x="132" y="516" fill="#00cc6a" font-family="Courier New,monospace" font-size="9">FUNDING_OK</text>
+  <rect x="200" y="506" width="36" height="14" fill="none" stroke="#00cc6a"/>
+  <text x="204" y="516" fill="#00cc6a" font-family="Courier New,monospace" font-size="9">LS_OK</text>
+  <rect x="240" y="506" width="52" height="14" fill="none" stroke="#00cc6a"/>
+  <text x="244" y="516" fill="#00cc6a" font-family="Courier New,monospace" font-size="9">LIQ_SAFE</text>
+  <line x1="12" y1="526" x2="363" y2="526" stroke="#222"/>
+
+  <!-- Log entry 2 -->
+  <text x="12" y="544" fill="#666" font-family="Courier New,monospace" font-size="11">14:00</text>
+  <text x="62" y="544" fill="#ffcc00" font-family="Courier New,monospace" font-size="11" font-weight="700">SKIP</text>
+  <text x="110" y="544" fill="#ccc" font-family="Courier New,monospace" font-size="11">ADA LONG rejected</text>
+  <rect x="62" y="550" width="62" height="14" fill="none" stroke="#00cc6a"/>
+  <text x="66" y="560" fill="#00cc6a" font-family="Courier New,monospace" font-size="9">OI_EXPAND</text>
+  <rect x="128" y="550" width="62" height="14" fill="none" stroke="#ff3355"/>
+  <text x="132" y="560" fill="#ff3355" font-family="Courier New,monospace" font-size="9">FUND_HIGH</text>
+  <rect x="194" y="550" width="56" height="14" fill="none" stroke="#ff3355"/>
+  <text x="198" y="560" fill="#ff3355" font-family="Courier New,monospace" font-size="9">LS_CROWD</text>
+  <line x1="12" y1="570" x2="363" y2="570" stroke="#222"/>
+
+  <!-- Log entry 3 -->
+  <text x="12" y="588" fill="#666" font-family="Courier New,monospace" font-size="11">13:30</text>
+  <text x="62" y="588" fill="#00ff88" font-family="Courier New,monospace" font-size="11" font-weight="700">FLIP</text>
+  <text x="110" y="588" fill="#ccc" font-family="Courier New,monospace" font-size="11">ETH LONG +$180 → SHORT</text>
+  <line x1="12" y1="596" x2="363" y2="596" stroke="#222"/>
+
+  <!-- Log entry 4 -->
+  <text x="12" y="614" fill="#666" font-family="Courier New,monospace" font-size="11">13:00</text>
+  <text x="62" y="614" fill="#00ccff" font-family="Courier New,monospace" font-size="11" font-weight="700">SCAN</text>
+  <text x="110" y="614" fill="#ccc" font-family="Courier New,monospace" font-size="11">4 syms, 2 sig, 1 rej. FnG=42</text>
+  <line x1="12" y1="622" x2="363" y2="622" stroke="#222"/>
+
+  <!-- Log entry 5 -->
+  <text x="12" y="640" fill="#666" font-family="Courier New,monospace" font-size="11">12:30</text>
+  <text x="62" y="640" fill="#00ff88" font-family="Courier New,monospace" font-size="11" font-weight="700">STOP</text>
+  <text x="110" y="640" fill="#ccc" font-family="Courier New,monospace" font-size="11">SOL trail hit @ 139.50 -$23</text>
+
+  <!-- Status bar -->
+  <rect x="0" y="790" width="375" height="22" fill="#111111"/>
+  <line x1="0" y1="790" x2="375" y2="790" stroke="#222"/>
+  <text x="12" y="805" fill="#666" font-family="Courier New,monospace" font-size="10">uptime 4h23m | cycle 14:32 UTC</text>
+  <text x="355" y="805" fill="#00ff88" font-family="Courier New,monospace" font-size="10" text-anchor="end">WS:OK</text>
+</svg>

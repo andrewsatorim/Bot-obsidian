@@ -9,6 +9,11 @@ dependencies = [
     "python-telegram-bot>=20.7,<21",
     "aiosqlite>=0.19,<1",
     "ccxt>=4.1,<5",
+    # Dashboard (Telegram Mini App) — FastAPI server + websocket
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "websockets>=12.0",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +27,7 @@ dev = [
 
 [project.scripts]
 bot-obsidian = "app.main:main"
+bot-dashboard = "app.api.run:main"
 
 [tool.setuptools.packages.find]
 include = ["app*"]

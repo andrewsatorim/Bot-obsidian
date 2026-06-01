@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bot-Obsidian Dashboard</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header id="header">
+        <div class="header-left">
+            <div class="bot-name">Bot-Obsidian</div>
+            <div class="bot-status" id="bot-status">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="mode-badge" id="mode-badge">PAPER</div>
+        </div>
+    </header>
+
+    <!-- Tab navigation -->
+    <nav id="tabs">
+        <button class="tab active" data-tab="dashboard">Dashboard</button>
+        <button class="tab" data-tab="positions">Positions</button>
+        <button class="tab" data-tab="signals">Signals</button>
+        <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <!-- Dashboard tab -->
+    <section id="tab-dashboard" class="tab-content active">
+        <!-- PnL cards -->
+        <div class="cards-row">
+            <div class="card card-equity">
+                <div class="card-label">Equity</div>
+                <div class="card-value" id="equity">$0.00</div>
+                <div class="card-sub" id="equity-sub">Peak: $0.00</div>
+            </div>
+            <div class="card card-pnl">
+                <div class="card-label">Daily PnL</div>
+                <div class="card-value" id="daily-pnl">$0.00</div>
+                <div class="card-sub" id="pnl-pct">0.00%</div>
+            </div>
+        </div>
+
+        <div class="cards-row">
+            <div class="card card-dd">
+                <div class="card-label">Drawdown</div>
+                <div class="card-value" id="drawdown">0.00%</div>
+                <div class="card-progress">
+                    <div class="progress-bar" id="dd-bar"></div>
+                </div>
+            </div>
+            <div class="card card-pos">
+                <div class="card-label">Positions</div>
+                <div class="card-value" id="pos-count">0</div>
+                <div class="card-sub" id="pos-max">/ 4 max</div>
+            </div>
+        </div>
+
+        <!-- Active positions summary -->
+        <div class="section-header">Active Positions</div>
+        <div id="positions-summary" class="positions-list">
+            <div class="empty-state">No open positions</div>
+        </div>
+
+        <!-- Recent alerts -->
+        <div class="section-header">Recent Alerts</div>
+        <div id="alerts-list" class="alerts-list">
+            <div class="empty-state">No alerts yet</div>
+        </div>
+    </section>
+
+    <!-- Positions tab -->
+    <section id="tab-positions" class="tab-content">
+        <div id="positions-detail" class="positions-detail">
+            <div class="empty-state">No open positions</div>
+        </div>
+    </section>
+
+    <!-- Signals tab -->
+    <section id="tab-signals" class="tab-content">
+        <!-- Market overview -->
+        <div class="section-header">Market Overview</div>
+        <div id="market-grid" class="market-grid"></div>
+
+        <!-- Signal history -->
+        <div class="section-header">Signal History</div>
+        <div id="signals-list" class="signals-list">
+            <div class="empty-state">No signals yet</div>
+        </div>
+    </section>
+
+    <!-- Settings tab -->
+    <section id="tab-settings" class="tab-content">
+        <div class="settings-group">
+            <div class="settings-title">Trading Parameters</div>
+
+            <div class="setting-row">
+                <label>Margin %</label>
+                <div class="setting-control">
+                    <input type="range" id="set-margin" min="5" max="50" step="5">
+                    <span class="setting-value" id="val-margin">25%</span>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <label>Leverage</label>
+                <div class="setting-control">
+                    <input type="range" id="set-leverage" min="1" max="50" step="1">
+                    <span class="setting-value" id="val-leverage">25x</span>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <label>Trail ATR</label>
+                <div class="setting-control">
+                    <input type="range" id="set-trail" min="1.0" max="5.0" step="0.5">
+                    <span class="setting-value" id="val-trail">2.5</span>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <label>Max Daily Loss</label>
+                <div class="setting-control">
+                    <input type="range" id="set-maxloss" min="1" max="15" step="1">
+                    <span class="setting-value" id="val-maxloss">5%</span>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <label>Max Positions</label>
+                <div class="setting-control">
+                    <input type="range" id="set-maxpos" min="1" max="8" step="1">
+                    <span class="setting-value" id="val-maxpos">4</span>
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <label>Min Confidence</label>
+                <div class="setting-control">
+                    <input type="range" id="set-confidence" min="0.1" max="0.9" step="0.1">
+                    <span class="setting-value" id="val-confidence">0.3</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <div class="settings-title">Mode</div>
+            <div class="setting-row">
+                <label>Paper Trading</label>
+                <div class="toggle-wrap">
+                    <input type="checkbox" id="set-paper" class="toggle" checked>
+                    <label for="set-paper" class="toggle-label"></label>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-save" id="btn-save-settings">Save Settings</button>
+
+        <div class="settings-group" style="margin-top: 16px;">
+            <div class="settings-title">System</div>
+            <div class="info-row">
+                <span>Uptime</span>
+                <span id="sys-uptime">-</span>
+            </div>
+            <div class="info-row">
+                <span>WebSocket</span>
+                <span id="sys-ws">Disconnected</span>
+            </div>
+            <div class="info-row">
+                <span>Last Cycle</span>
+                <span id="sys-cycle">-</span>
+            </div>
+        </div>
+    </section>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

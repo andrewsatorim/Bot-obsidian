@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="900" viewBox="0 0 375 900">
+  <defs>
+    <linearGradient id="mintGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#56d4a5"/>
+      <stop offset="100%" style="stop-color:#3ecf8e"/>
+    </linearGradient>
+    <linearGradient id="sigGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#56d4a5"/>
+      <stop offset="100%" style="stop-color:#79b8ff"/>
+    </linearGradient>
+    <linearGradient id="rejGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#e8b34b"/>
+      <stop offset="100%" style="stop-color:#f07178"/>
+    </linearGradient>
+    <filter id="heroGlow"><feGaussianBlur stdDeviation="30"/></filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="375" height="900" fill="#0d1117"/>
+
+  <!-- ============ HEADER ============ -->
+  <rect x="20" y="16" width="32" height="32" rx="9" fill="url(#mintGrad)"/>
+  <text x="36" y="38" fill="#0d1117" font-family="Inter,Helvetica,sans-serif" font-size="15" font-weight="800" text-anchor="middle">O</text>
+  <text x="62" y="37" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="16" font-weight="700" letter-spacing="-0.4">Obsidian</text>
+  <!-- Status -->
+  <circle cx="314" cy="32" r="3.5" fill="#56d4a5"/>
+  <rect x="324" y="24" width="40" height="18" rx="9" fill="#21262d" stroke="rgba(240,246,252,0.1)"/>
+  <text x="344" y="37" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="700" text-anchor="middle" letter-spacing="0.8">PAPER</text>
+
+  <!-- ============ TABS ============ -->
+  <rect x="16" y="56" width="80" height="28" rx="6" fill="#161b22"/>
+  <text x="56" y="74" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600" text-anchor="middle">Overview</text>
+  <text x="140" y="74" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600" text-anchor="middle">Positions</text>
+  <text x="228" y="74" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600" text-anchor="middle">Signals</text>
+  <text x="320" y="74" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600" text-anchor="middle">Settings</text>
+
+  <!-- ============ EQUITY HERO ============ -->
+  <rect x="16" y="94" width="343" height="134" rx="14" fill="#161b22" stroke="rgba(240,246,252,0.06)"/>
+  <!-- Subtle glow -->
+  <ellipse cx="187" cy="94" rx="80" ry="40" fill="#56d4a5" opacity="0.04" filter="url(#heroGlow)"/>
+
+  <text x="32" y="118" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="11" font-weight="500" letter-spacing="0.8">TOTAL EQUITY</text>
+  <text x="32" y="148" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="34" font-weight="800" letter-spacing="-1.5">$12,847</text>
+  <text x="217" y="148" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="22" font-weight="800">.32</text>
+
+  <!-- PnL right side -->
+  <text x="343" y="121" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="20" font-weight="700" text-anchor="end" letter-spacing="-0.5">+$847.32</text>
+  <text x="343" y="138" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600" text-anchor="end">+7.05% today</text>
+
+  <!-- Metrics strip -->
+  <rect x="28" y="162" width="319" height="54" rx="10" fill="#1c2129"/>
+  <!-- Separators -->
+  <line x1="108" y1="170" x2="108" y2="208" stroke="rgba(240,246,252,0.06)"/>
+  <line x1="188" y1="170" x2="188" y2="208" stroke="rgba(240,246,252,0.06)"/>
+  <line x1="268" y1="170" x2="268" y2="208" stroke="rgba(240,246,252,0.06)"/>
+
+  <text x="68" y="186" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="15" font-weight="700" text-anchor="middle">$13,100</text>
+  <text x="68" y="200" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.5">PEAK</text>
+  <text x="148" y="186" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="15" font-weight="700" text-anchor="middle">3 / 4</text>
+  <text x="148" y="200" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.5">POSITIONS</text>
+  <text x="228" y="186" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="15" font-weight="700" text-anchor="middle">68%</text>
+  <text x="228" y="200" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.5">WIN RATE</text>
+  <text x="308" y="186" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="15" font-weight="700" text-anchor="middle">2.1</text>
+  <text x="308" y="200" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.5">SHARPE</text>
+
+  <!-- ============ HEALTH BAR ============ -->
+  <rect x="16" y="240" width="343" height="62" rx="10" fill="#161b22" stroke="rgba(240,246,252,0.06)"/>
+  <text x="30" y="260" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600">Portfolio Health</text>
+  <text x="343" y="260" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="700" text-anchor="end">Healthy</text>
+  <!-- Track -->
+  <rect x="30" y="272" width="315" height="6" rx="3" fill="#21262d"/>
+  <rect x="30" y="272" width="72" height="6" rx="3" fill="url(#mintGrad)"/>
+  <!-- Labels -->
+  <text x="30" y="292" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">Drawdown 3.4%</text>
+  <text x="345" y="292" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10" text-anchor="end">Limit 15%</text>
+
+  <!-- ============ MARKET PULSE ============ -->
+  <text x="20" y="326" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="700" letter-spacing="-0.2">Market Pulse</text>
+  <rect x="96" y="315" width="28" height="16" rx="8" fill="rgba(86,212,165,0.1)"/>
+  <text x="110" y="327" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="600" text-anchor="middle">Live</text>
+
+  <!-- Horizontal scroll cards (showing 3 visible) -->
+  <!-- Sentiment card -->
+  <rect x="16" y="338" width="140" height="120" rx="10" fill="#161b22" stroke="rgba(240,246,252,0.06)"/>
+  <text x="28" y="356" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10" font-weight="600" letter-spacing="0.5">FEAR &amp; GREED</text>
+  <!-- Gauge ring -->
+  <circle cx="46" cy="384" r="18" fill="none" stroke="#21262d" stroke-width="3"/>
+  <circle cx="46" cy="384" r="18" fill="none" stroke="#e8b34b" stroke-width="3" stroke-dasharray="50 63" stroke-dashoffset="-15" stroke-linecap="round"/>
+  <text x="46" y="389" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="14" font-weight="800" text-anchor="middle">42</text>
+  <text x="74" y="380" fill="#e8b34b" font-family="Inter,Helvetica,sans-serif" font-size="11" font-weight="700">Fear</text>
+  <text x="74" y="393" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">Contrarian: Bull</text>
+  <text x="28" y="426" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" line-height="1.3">BTC funding low, OI</text>
+  <text x="28" y="438" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9">expanding — breakout</text>
+  <text x="28" y="450" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9">setup forming</text>
+
+  <!-- BTC card -->
+  <rect x="164" y="338" width="130" height="120" rx="10" fill="#161b22" stroke="rgba(240,246,252,0.06)"/>
+  <text x="176" y="358" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="-0.3">BTC</text>
+  <rect x="206" y="346" width="48" height="16" rx="4" fill="rgba(86,212,165,0.1)"/>
+  <text x="230" y="358" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="8" font-weight="600" text-anchor="middle" letter-spacing="0.5">TREND UP</text>
+  <text x="176" y="382" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="18" font-weight="700" letter-spacing="-0.5">85,342</text>
+  <text x="176" y="398" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600">+2.4%</text>
+  <line x1="176" y1="408" x2="282" y2="408" stroke="rgba(240,246,252,0.06)"/>
+  <text x="176" y="424" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">OI</text>
+  <text x="230" y="424" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="10" font-weight="500" text-anchor="end">+2.1%</text>
+  <text x="176" y="440" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">FR</text>
+  <text x="230" y="440" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="10" font-weight="500" text-anchor="end">0.012%</text>
+  <text x="176" y="456" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">L/S</text>
+  <text x="230" y="456" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="10" font-weight="500" text-anchor="end">52 / 48</text>
+
+  <!-- ETH card (partially visible — scroll hint) -->
+  <rect x="302" y="338" width="130" height="120" rx="10" fill="#161b22" stroke="rgba(240,246,252,0.06)"/>
+  <text x="314" y="358" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="-0.3">ETH</text>
+  <rect x="340" y="346" width="50" height="16" rx="4" fill="rgba(240,113,120,0.1)"/>
+  <text x="365" y="358" fill="#f07178" font-family="Inter,Helvetica,sans-serif" font-size="8" font-weight="600" text-anchor="middle" letter-spacing="0.5">TREND DN</text>
+  <text x="314" y="382" fill="#f07178" font-family="Inter,Helvetica,sans-serif" font-size="18" font-weight="700" letter-spacing="-0.5">1,892</text>
+  <text x="314" y="398" fill="#f07178" font-family="Inter,Helvetica,sans-serif" font-size="12" font-weight="600">-1.2%</text>
+
+  <!-- ============ POSITIONS ============ -->
+  <text x="20" y="486" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="700" letter-spacing="-0.2">Positions</text>
+  <rect x="78" y="475" width="44" height="16" rx="8" fill="rgba(86,212,165,0.1)"/>
+  <text x="100" y="487" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="600" text-anchor="middle">3 Open</text>
+
+  <!-- BTC Position -->
+  <rect x="16" y="498" width="343" height="108" rx="14" fill="#161b22" stroke="rgba(240,246,252,0.06)"/>
+  <!-- Header -->
+  <circle cx="40" cy="522" r="16" fill="rgba(247,147,26,0.12)"/>
+  <text x="40" y="527" fill="#f7931a" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="800" text-anchor="middle">B</text>
+  <text x="64" y="519" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="15" font-weight="700" letter-spacing="-0.3">BTC/USDT</text>
+  <text x="64" y="532" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">Opened 2h ago</text>
+  <rect x="296" y="512" width="52" height="20" rx="6" fill="rgba(86,212,165,0.1)"/>
+  <text x="322" y="526" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="10" font-weight="700" text-anchor="middle">LONG</text>
+  <!-- Body grid -->
+  <text x="57" y="555" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">ENTRY</text>
+  <text x="57" y="569" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">84,230</text>
+  <text x="144" y="555" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">MARK</text>
+  <text x="144" y="569" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">85,342</text>
+  <text x="231" y="555" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">STOP</text>
+  <text x="231" y="569" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">83,100</text>
+  <text x="318" y="555" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">SIZE</text>
+  <text x="318" y="569" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">0.038</text>
+  <!-- Footer -->
+  <rect x="16" y="580" width="343" height="26" rx="0" fill="#1c2129"/>
+  <rect x="16" y="592" width="343" height="14" rx="14" fill="#1c2129"/>
+  <text x="32" y="598" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="18" font-weight="800" letter-spacing="-0.5">+$412.80</text>
+  <text x="343" y="598" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="700" text-anchor="end">+12.8%</text>
+
+  <!-- ETH Position -->
+  <rect x="16" y="616" width="343" height="108" rx="14" fill="#161b22" stroke="rgba(240,246,252,0.06)"/>
+  <circle cx="40" cy="640" r="16" fill="rgba(98,126,234,0.12)"/>
+  <text x="40" y="645" fill="#627eea" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="800" text-anchor="middle">E</text>
+  <text x="64" y="637" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="15" font-weight="700" letter-spacing="-0.3">ETH/USDT</text>
+  <text x="64" y="650" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">Flipped 1h ago</text>
+  <rect x="290" y="630" width="58" height="20" rx="6" fill="rgba(240,113,120,0.1)"/>
+  <text x="319" y="644" fill="#f07178" font-family="Inter,Helvetica,sans-serif" font-size="10" font-weight="700" text-anchor="middle">SHORT</text>
+  <text x="57" y="673" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">ENTRY</text>
+  <text x="57" y="687" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">1,920.4</text>
+  <text x="144" y="673" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">MARK</text>
+  <text x="144" y="687" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">1,892.4</text>
+  <text x="231" y="673" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">STOP</text>
+  <text x="231" y="687" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">1,985.0</text>
+  <text x="318" y="673" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="9" font-weight="500" text-anchor="middle" letter-spacing="0.3">SIZE</text>
+  <text x="318" y="687" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="600" text-anchor="middle">1.670</text>
+  <rect x="16" y="698" width="343" height="26" rx="0" fill="#1c2129"/>
+  <rect x="16" y="710" width="343" height="14" rx="14" fill="#1c2129"/>
+  <text x="32" y="716" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="18" font-weight="800" letter-spacing="-0.5">+$215.40</text>
+  <text x="343" y="716" fill="#56d4a5" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="700" text-anchor="end">+6.7%</text>
+
+  <!-- ============ ACTIVITY ============ -->
+  <text x="20" y="750" fill="#f0f3f6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="700" letter-spacing="-0.2">Activity</text>
+
+  <!-- Alert 1 -->
+  <rect x="22" y="762" width="3" height="30" rx="2" fill="#56d4a5"/>
+  <text x="34" y="775" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">14:32 UTC</text>
+  <text x="34" y="790" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="500"><tspan fill="#f0f3f6" font-weight="700">BTC</tspan> Breakout LONG @ 84,230</text>
+  <line x1="16" y1="800" x2="359" y2="800" stroke="rgba(240,246,252,0.06)"/>
+
+  <!-- Alert 2 -->
+  <rect x="22" y="808" width="3" height="30" rx="2" fill="#e8b34b"/>
+  <text x="34" y="821" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">14:00 UTC</text>
+  <text x="34" y="836" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="500"><tspan fill="#f0f3f6" font-weight="700">ADA</tspan> Signal rejected — funding extreme</text>
+  <line x1="16" y1="846" x2="359" y2="846" stroke="rgba(240,246,252,0.06)"/>
+
+  <!-- Alert 3 -->
+  <rect x="22" y="854" width="3" height="30" rx="2" fill="#56d4a5"/>
+  <text x="34" y="867" fill="#5d6a76" font-family="Inter,Helvetica,sans-serif" font-size="10">13:30 UTC</text>
+  <text x="34" y="882" fill="#9eaab6" font-family="Inter,Helvetica,sans-serif" font-size="13" font-weight="500"><tspan fill="#f0f3f6" font-weight="700">ETH</tspan> Flip: LONG +$180 → SHORT</text>
+</svg>
