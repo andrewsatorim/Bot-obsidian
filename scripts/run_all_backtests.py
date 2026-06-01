@@ -507,6 +507,65 @@ def persist(ranked: list[RankedResult], meta: dict) -> str:
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
+def run_walk_forward_mode(
+    configs: list[BacktestConfig],
+    bundles: list[MarketDataBundle],
+    symbol: str,
+    initial_equity: float,
+    n_windows: int = 3,
+) -> list[dict]:
+    """Run 3-window walk-forward validation for every (config, strategy) and report."""
+    rows: list[dict] = []
+    for config in configs:
+        for strategy_name in config.resolved_strategies():
+            settings = Settings(account_equity=initial_equity, paper_trading=True,
+                                max_position_pct=config.margin_pct)
+            engine = BacktestEngine(
+                analytics=FeatureEngine(),
+                strategy=STRATEGY_REGISTRY[strategy_name](symbol),
+                risk=RiskManager(settings),
+                initial_equity=initial_equity,
+                atr_risk_multiplier=config.atr_mult,
+                max_position_pct=config.margin_pct,
+                leverage=config.leverage,
+                tp_levels=config.tp_levels,
+                trailing_stop_atr=config.trailing_atr,
+                fee_pct=config.fee_pct,
+                slippage_pct=config.slippage_pct,
+            )
+            wf = engine.run_walk_forward(
+                bundles, n_windows=n_windows, min_profitable_windows=2,
+                strategy_factory=lambda n=strategy_name: STRATEGY_REGISTRY[n](symbol),
+            )
+            rows.append({
+                "config": config.name, "strategy": strategy_name,
+                "window_returns_pct": [round(r, 4) for r in wf.window_returns_pct],
+                "aggregate_return_pct": round(wf.aggregate.total_return_pct, 4),
+                "profitable_windows": wf.profitable_windows,
+                "n_windows": wf.n_windows,
+                "robust": wf.robust,
+            })
+
+    header = (f"{'Config':<14} {'Strategy':<18} " +
+              " ".join(f"{'W'+str(i+1):>8}" for i in range(n_windows)) +
+              f" {'Aggreg':>9} {'Prof':>5}  Verdict")
+    print(f"Walk-forward validation ({n_windows} non-overlapping windows; "
+          f"robust = profitable in >=2/{n_windows})")
+    print("=" * (len(header) + 4))
+    print(header)
+    print("-" * (len(header) + 4))
+    for row in rows:
+        wins = " ".join(f"{r:>+7.2f}%" for r in row["window_returns_pct"])
+        verdict = "✓ ROBUST" if row["robust"] else "✗ not robust"
+        print(f"{row['config']:<14} {row['strategy']:<18} {wins} "
+              f"{row['aggregate_return_pct']:>+8.2f}% "
+              f"{row['profitable_windows']:>2}/{row['n_windows']:<2}  {verdict}")
+    print("=" * (len(header) + 4))
+    robust_n = sum(1 for r in rows if r["robust"])
+    print(f"Robust strategies: {robust_n}/{len(rows)}")
+    return rows
+
+
 def print_ranked_table(ranked: list[RankedResult], max_dd_threshold: float) -> None:
     """Print results sorted by risk-adjusted rank, with the winner flagged.
 
@@ -553,6 +612,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--equity", type=float, default=10_000.0, help="Initial equity")
     p.add_argument("--max-dd", type=float, default=-35.0, dest="max_dd",
                    help="Max-drawdown filter for ranking (signed %%, default -35.0)")
+    p.add_argument("--walk-forward", action="store_true", dest="walk_forward",
+                   help="Run 3-window walk-forward validation (robust = profitable in >=2/3)")
     return p.parse_args(argv)
 
 
@@ -582,6 +643,19 @@ def main(argv: list[str] | None = None) -> int:
     if not bundles:
         print("ERROR: no data bundles were built.", file=sys.stderr)
         return 1
+
+    if args.walk_forward:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        rows = run_walk_forward_mode(configs, bundles, args.symbol, args.equity)
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+        wf_path = os.path.join(RESULTS_DIR, f"{timestamp}_walkforward.json")
+        with open(wf_path, "w", encoding="utf-8") as fh:
+            json.dump({"meta": {"timestamp": timestamp, "source": source,
+                                "symbol": args.symbol, "timeframe": timeframe,
+                                "candles": len(bundles), "configs": selected},
+                       "walk_forward": rows}, fh, indent=2)
+        print(f"\nSaved walk-forward report: {wf_path}")
+        return 0
 
     records: list[RunRecord] = []
     for config in configs:

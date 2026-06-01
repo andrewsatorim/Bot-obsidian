@@ -5,7 +5,7 @@ import time
 import pytest
 
 from app.analytics.feature_engine import FeatureEngine
-from app.backtest.engine import BacktestEngine, BacktestResult
+from app.backtest.engine import BacktestEngine, BacktestResult, WalkForwardResult
 from app.config import Settings
 from app.models.market_data_bundle import MarketDataBundle
 from app.models.market_snapshot import MarketSnapshot
@@ -151,3 +151,54 @@ class TestFeesAndSlippage:
         assert engine.fee_pct == 0.0
         assert engine.slippage_pct > 0.0
         assert engine._cost_rate == pytest.approx(engine.fee_pct + engine.slippage_pct)
+
+
+class TestWalkForward:
+    def _engine(self):
+        settings = Settings(account_equity=10_000.0, paper_trading=True)
+        return BacktestEngine(
+            analytics=FeatureEngine(),
+            strategy=FundingMeanReversionStrategy(symbol="BTC/USDT"),
+            risk=RiskManager(settings),
+            slippage_pct=0.0,
+        )
+
+    def test_splits_into_n_nonoverlapping_windows(self):
+        engine = self._engine()
+        data = [_flat_bundle(65000.0, i) for i in range(60)]
+        wf = engine.run_walk_forward(data, n_windows=3)
+        assert isinstance(wf, WalkForwardResult)
+        assert wf.n_windows == 3
+        assert wf.aggregate is not None
+        assert len(wf.window_returns_pct) == 3
+
+    def test_restores_original_strategy(self):
+        engine = self._engine()
+        original = engine.strategy
+        data = [_flat_bundle(65000.0, i) for i in range(30)]
+        engine.run_walk_forward(
+            data, n_windows=3,
+            strategy_factory=lambda: FundingMeanReversionStrategy(symbol="BTC/USDT"),
+        )
+        assert engine.strategy is original
+
+    def test_robust_requires_min_profitable_windows(self):
+        # Build a WalkForwardResult directly with controlled per-window returns.
+        def win(ret):
+            return BacktestResult(initial_equity=100.0,
+                                  equity_curve=[100.0, 100.0 * (1 + ret / 100)])
+
+        # 2 of 3 profitable => robust
+        wf = WalkForwardResult(windows=[win(5), win(-3), win(8)], min_profitable_windows=2)
+        assert wf.profitable_windows == 2
+        assert wf.robust is True
+
+        # 1 of 3 profitable => not robust (works in only one regime)
+        wf2 = WalkForwardResult(windows=[win(20), win(-3), win(-8)], min_profitable_windows=2)
+        assert wf2.profitable_windows == 1
+        assert wf2.robust is False
+
+    def test_raises_when_not_enough_data(self):
+        engine = self._engine()
+        with pytest.raises(ValueError):
+            engine.run_walk_forward([_flat_bundle(65000.0, 0)], n_windows=3)

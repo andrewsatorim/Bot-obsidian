@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Callable, Optional
 
 from app.models.enums import Direction, OrderSide, OrderStatus, OrderType
 from app.models.execution_report import ExecutionReport
@@ -165,6 +165,50 @@ class BacktestResult:
         return "\n".join(lines)
 
 
+@dataclass
+class WalkForwardResult:
+    """Result of a walk-forward validation: per-window results + an aggregate run.
+
+    A strategy is considered *robust* only if it is profitable in at least
+    ``min_profitable_windows`` of the windows (default 2 of 3) — this filters out
+    strategies that only work in a single market regime (overfit to one period).
+    """
+    windows: list[BacktestResult] = field(default_factory=list)
+    aggregate: Optional[BacktestResult] = None
+    min_profitable_windows: int = 2
+
+    @property
+    def n_windows(self) -> int:
+        return len(self.windows)
+
+    @property
+    def window_returns_pct(self) -> list[float]:
+        return [w.total_return_pct for w in self.windows]
+
+    @property
+    def profitable_windows(self) -> int:
+        return sum(1 for w in self.windows if w.total_return_pct > 0)
+
+    @property
+    def robust(self) -> bool:
+        return self.profitable_windows >= self.min_profitable_windows
+
+    def summary(self) -> str:
+        lines = ["═══ Walk-Forward Validation ═══"]
+        for i, w in enumerate(self.windows, start=1):
+            mark = "+" if w.total_return_pct > 0 else "-"
+            lines.append(
+                f"  Window {i}: {w.total_return_pct:>+7.2f}%  "
+                f"({w.total_trades} trades, MDD {w.max_drawdown_pct:.2f}%) [{mark}]"
+            )
+        if self.aggregate is not None:
+            lines.append(f"  Aggregate: {self.aggregate.total_return_pct:>+7.2f}% "
+                         f"({self.aggregate.total_trades} trades)")
+        lines.append(f"  Profitable windows: {self.profitable_windows}/{self.n_windows} "
+                     f"=> {'ROBUST' if self.robust else 'NOT robust'}")
+        return "\n".join(lines)
+
+
 FEE_RATE = 0.001  # 0.1% — legacy default, kept for scripts importing it
 DEFAULT_SLIPPAGE_PCT = 0.0005  # 0.05% adverse fill per side (~half a 0.1% spread)
 
@@ -292,6 +336,63 @@ class BacktestEngine:
             result.equity_curve[-1] = equity
 
         logger.info("backtest complete: %d trades, return=%.2f%%", result.total_trades, result.total_return_pct)
+        return result
+
+    def run_walk_forward(
+        self,
+        data: list[MarketDataBundle],
+        n_windows: int = 3,
+        min_profitable_windows: int = 2,
+        strategy_factory: Callable[[], StrategyPort] | None = None,
+    ) -> WalkForwardResult:
+        """Run the backtest over ``n_windows`` non-overlapping windows + an aggregate.
+
+        The data is split into contiguous, equal-ish slices that do not overlap, each
+        run independently. A strategy is robust only if profitable in at least
+        ``min_profitable_windows`` of them — this rejects strategies that only shine
+        in one market regime.
+
+        Strategies carry internal state (price buffers, cooldown counters), so for
+        truly independent windows pass ``strategy_factory`` to rebuild a fresh
+        strategy per window/aggregate. Without it, the same instance is reused (state
+        bleeds across windows) — fine for a quick check, not for clean validation.
+        The original strategy instance is restored before returning.
+        """
+        if n_windows < 1:
+            raise ValueError("n_windows must be >= 1")
+        if len(data) < n_windows:
+            raise ValueError(f"not enough data ({len(data)}) for {n_windows} windows")
+
+        original_strategy = self.strategy
+
+        def _fresh() -> None:
+            if strategy_factory is not None:
+                self.strategy = strategy_factory()
+
+        try:
+            size = len(data) // n_windows
+            windows: list[BacktestResult] = []
+            for w in range(n_windows):
+                start = w * size
+                end = (w + 1) * size if w < n_windows - 1 else len(data)
+                _fresh()
+                windows.append(self.run(data[start:end]))
+
+            _fresh()
+            aggregate = self.run(data)
+        finally:
+            self.strategy = original_strategy
+
+        result = WalkForwardResult(
+            windows=windows,
+            aggregate=aggregate,
+            min_profitable_windows=min_profitable_windows,
+        )
+        logger.info(
+            "walk-forward: %d/%d profitable windows => %s",
+            result.profitable_windows, result.n_windows,
+            "ROBUST" if result.robust else "NOT robust",
+        )
         return result
 
     def _check_exit(self, pos: _OpenPosition, price: float, force: bool = False) -> tuple[bool, float, float, str]:
