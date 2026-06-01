@@ -107,6 +107,7 @@ class BacktestConfig:
     strategies: list[str] | str  # registry names, or "ALL"
     fee_pct: float = 0.0        # taker fee per fill (0 = MEXC zero-fee pairs)
     slippage_pct: float = 0.0005  # adverse fill cost per fill (~half-spread)
+    regime_filter: bool = False  # only enter in TREND_UP/TREND_DOWN, skip RANGE
 
     def resolved_strategies(self) -> list[str]:
         if self.strategies == "ALL":
@@ -312,8 +313,10 @@ def run_one(
     bundles: list[MarketDataBundle],
     symbol: str,
     initial_equity: float,
+    regime_filter: bool | None = None,
 ) -> RunRecord:
     strategy = STRATEGY_REGISTRY[strategy_name](symbol)
+    use_regime_filter = config.regime_filter if regime_filter is None else regime_filter
     settings = Settings(
         account_equity=initial_equity,
         paper_trading=True,
@@ -331,6 +334,7 @@ def run_one(
         trailing_stop_atr=config.trailing_atr,
         fee_pct=config.fee_pct,
         slippage_pct=config.slippage_pct,
+        regime_filter=use_regime_filter,
     )
     result = engine.run(bundles)
     return RunRecord(
@@ -345,6 +349,7 @@ def run_one(
             "trailing_atr": config.trailing_atr,
             "fee_pct": config.fee_pct,
             "slippage_pct": config.slippage_pct,
+            "regime_filter": use_regime_filter,
             "tp_levels": config.tp_as_dicts(),
             "initial_equity": initial_equity,
         },
@@ -467,7 +472,7 @@ def persist(ranked: list[RankedResult], meta: dict) -> str:
         "timestamp", "source", "rank", "is_winner", "passed_dd_filter",
         "config", "strategy", "symbol", "timeframe",
         "leverage", "margin_pct", "atr_mult", "trailing_atr",
-        "fee_pct", "slippage_pct", "tp_ladder",
+        "fee_pct", "slippage_pct", "regime_filter", "tp_ladder",
         "initial_equity", *METRIC_KEYS,
     ]
     write_header = not os.path.exists(HISTORY_CSV)
@@ -497,6 +502,7 @@ def persist(ranked: list[RankedResult], meta: dict) -> str:
                 "trailing_atr": r.params["trailing_atr"],
                 "fee_pct": r.params["fee_pct"],
                 "slippage_pct": r.params["slippage_pct"],
+                "regime_filter": r.params["regime_filter"],
                 "tp_ladder": ladder,
                 "initial_equity": r.params["initial_equity"],
                 **r.metrics,
@@ -566,6 +572,41 @@ def run_walk_forward_mode(
     return rows
 
 
+def run_compare_regime_mode(
+    configs: list[BacktestConfig],
+    bundles: list[MarketDataBundle],
+    symbol: str,
+    initial_equity: float,
+) -> list[dict]:
+    """Run each (config, strategy) with the regime filter OFF and ON, side by side."""
+    rows: list[dict] = []
+    for config in configs:
+        for strategy_name in config.resolved_strategies():
+            off = run_one(config, strategy_name, bundles, symbol, initial_equity, regime_filter=False)
+            on = run_one(config, strategy_name, bundles, symbol, initial_equity, regime_filter=True)
+            rows.append({"config": config.name, "strategy": strategy_name,
+                         "off": off.metrics, "on": on.metrics})
+
+    header = (f"{'Config':<14} {'Strategy':<18} "
+              f"{'Trades off/on':>14} {'Return off/on':>20} {'Sharpe off/on':>18}")
+    print("Regime-filter comparison (OFF = trade any regime, ON = only TREND_UP/DOWN)")
+    print("=" * (len(header) + 2))
+    print(header)
+    print("-" * (len(header) + 2))
+    for row in rows:
+        o, n = row["off"], row["on"]
+        trades = f"{o['total_trades']:>5} / {n['total_trades']:<5}"
+        ret = f"{o['total_return_pct']:>+8.2f}% / {n['total_return_pct']:>+8.2f}%"
+        shp = f"{o['sharpe_ratio']:>7.2f} / {n['sharpe_ratio']:>7.2f}"
+        print(f"{row['config']:<14} {row['strategy']:<18} {trades:>14} {ret:>20} {shp:>18}")
+    print("=" * (len(header) + 2))
+    tot_off = sum(r["off"]["total_trades"] for r in rows)
+    tot_on = sum(r["on"]["total_trades"] for r in rows)
+    print(f"Total trades  OFF={tot_off}  ON={tot_on}  "
+          f"(filter removed {tot_off - tot_on} RANGE/other-regime entries)")
+    return rows
+
+
 def print_ranked_table(ranked: list[RankedResult], max_dd_threshold: float) -> None:
     """Print results sorted by risk-adjusted rank, with the winner flagged.
 
@@ -614,6 +655,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                    help="Max-drawdown filter for ranking (signed %%, default -35.0)")
     p.add_argument("--walk-forward", action="store_true", dest="walk_forward",
                    help="Run 3-window walk-forward validation (robust = profitable in >=2/3)")
+    p.add_argument("--regime-filter", action="store_true", dest="regime_filter",
+                   help="Force the regime filter ON (only trade TREND_UP/TREND_DOWN)")
+    p.add_argument("--compare-regime", action="store_true", dest="compare_regime",
+                   help="Run each strategy with the regime filter OFF and ON, side by side")
     return p.parse_args(argv)
 
 
@@ -657,10 +702,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nSaved walk-forward report: {wf_path}")
         return 0
 
+    if args.compare_regime:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        rows = run_compare_regime_mode(configs, bundles, args.symbol, args.equity)
+        os.makedirs(RESULTS_DIR, exist_ok=True)
+        cmp_path = os.path.join(RESULTS_DIR, f"{timestamp}_regimecompare.json")
+        with open(cmp_path, "w", encoding="utf-8") as fh:
+            json.dump({"meta": {"timestamp": timestamp, "source": source,
+                                "symbol": args.symbol, "timeframe": timeframe,
+                                "candles": len(bundles), "configs": selected},
+                       "comparison": rows}, fh, indent=2)
+        print(f"\nSaved regime-filter comparison: {cmp_path}")
+        return 0
+
     records: list[RunRecord] = []
     for config in configs:
         for strategy_name in config.resolved_strategies():
-            rec = run_one(config, strategy_name, bundles, args.symbol, args.equity)
+            rec = run_one(config, strategy_name, bundles, args.symbol, args.equity,
+                          regime_filter=True if args.regime_filter else None)
             records.append(rec)
 
     ranked = rank_results(records, max_dd_threshold=args.max_dd)

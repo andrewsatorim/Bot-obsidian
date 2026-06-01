@@ -9,7 +9,8 @@ from app.backtest.engine import BacktestEngine, BacktestResult, WalkForwardResul
 from app.config import Settings
 from app.models.market_data_bundle import MarketDataBundle
 from app.models.market_snapshot import MarketSnapshot
-from app.models.enums import Direction
+from app.models.enums import Direction, RegimeLabel
+from app.models.feature_vector import FeatureVector
 from app.models.signal import Signal
 from app.risk.risk_manager import RiskManager
 from app.strategy.funding_mean_reversion import FundingMeanReversionStrategy
@@ -202,3 +203,57 @@ class TestWalkForward:
         engine = self._engine()
         with pytest.raises(ValueError):
             engine.run_walk_forward([_flat_bundle(65000.0, 0)], n_windows=3)
+
+
+class _FixedRegimeAnalytics:
+    """Stub analytics returning a FeatureVector with a fixed regime label."""
+
+    def __init__(self, regime: RegimeLabel, price: float = 65000.0) -> None:
+        self._regime = regime
+        self._price = price
+
+    def build_features(self, bundle) -> FeatureVector:
+        return FeatureVector(
+            price=self._price, atr=500.0, volatility_regime=0.02,
+            volume_ratio=1.5, volume_spike=True,
+            oi_delta=10.0, oi_trend=0.05,
+            funding=0.0001, funding_zscore=0.5,
+            spread=5.0, slippage_estimate=6.0,
+            liquidation_above=self._price * 1.02, liquidation_below=self._price * 0.98,
+            news_score=0.0, onchain_score=0.0,
+            regime_label=self._regime,
+        )
+
+
+class TestRegimeFilter:
+    def _engine(self, regime: RegimeLabel, regime_filter: bool) -> BacktestEngine:
+        settings = Settings(account_equity=10_000.0, paper_trading=True, max_position_pct=0.05)
+        return BacktestEngine(
+            analytics=_FixedRegimeAnalytics(regime),
+            strategy=_AlwaysLong(),
+            risk=RiskManager(settings),
+            leverage=10.0,
+            slippage_pct=0.0,
+            regime_filter=regime_filter,
+        )
+
+    def _data(self):
+        return [_flat_bundle(65000.0, i) for i in range(10)]
+
+    def test_range_blocked_when_filter_on(self):
+        r = self._engine(RegimeLabel.RANGE, regime_filter=True).run(self._data())
+        assert r.total_trades == 0  # RANGE entries are skipped
+
+    def test_range_traded_when_filter_off(self):
+        r = self._engine(RegimeLabel.RANGE, regime_filter=False).run(self._data())
+        assert r.total_trades == 1  # default behavior: trade regardless of regime
+
+    def test_trend_allowed_when_filter_on(self):
+        r = self._engine(RegimeLabel.TREND_UP, regime_filter=True).run(self._data())
+        assert r.total_trades == 1  # TREND_UP passes the filter
+
+    def test_default_filter_is_off(self):
+        settings = Settings(account_equity=10_000.0, paper_trading=True)
+        engine = BacktestEngine(analytics=FeatureEngine(), strategy=_AlwaysLong(),
+                                risk=RiskManager(settings))
+        assert engine.regime_filter is False

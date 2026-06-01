@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from app.models.enums import Direction, OrderSide, OrderStatus, OrderType
+from app.models.enums import Direction, OrderSide, OrderStatus, OrderType, RegimeLabel
 from app.models.execution_report import ExecutionReport
 from app.models.feature_vector import FeatureVector
 from app.models.market_data_bundle import MarketDataBundle
@@ -237,6 +237,7 @@ class BacktestEngine:
         trailing_stop_atr: float = 0.0,  # 0 = disabled, e.g. 1.618
         fee_pct: float = 0.0,            # taker fee per fill (0 = MEXC zero-fee pairs)
         slippage_pct: float = DEFAULT_SLIPPAGE_PCT,  # adverse fill cost per fill (~half-spread)
+        regime_filter: bool = False,     # if True, only enter in TREND_UP/TREND_DOWN, skip RANGE
     ) -> None:
         self.analytics = analytics
         self.strategy = strategy
@@ -253,6 +254,7 @@ class BacktestEngine:
         self.fee_pct = fee_pct
         self.slippage_pct = slippage_pct
         self._cost_rate = fee_pct + slippage_pct
+        self.regime_filter = regime_filter
 
     def run(self, data: list[MarketDataBundle]) -> BacktestResult:
         result = BacktestResult(initial_equity=self.initial_equity)
@@ -295,7 +297,14 @@ class BacktestEngine:
             # Generate signal if no position
             if position is None:
                 features = self.analytics.build_features(bundle)
+                # Always let the strategy observe the bar (keeps its internal state
+                # consistent); the regime filter only gates whether we act on it.
                 signal = self.strategy.generate_signal(features)
+
+                if signal is not None and self.regime_filter and features.regime_label not in (
+                    RegimeLabel.TREND_UP, RegimeLabel.TREND_DOWN
+                ):
+                    signal = None  # skip RANGE / VOLATILE / UNKNOWN regimes
 
                 if signal is not None:
                     trade = self._signal_to_trade(signal, features)
