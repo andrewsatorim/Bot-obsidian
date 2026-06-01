@@ -24,10 +24,10 @@ from dataclasses import dataclass
 from app.analytics.feature_engine import FeatureEngine
 from app.models.enums import Direction, RegimeLabel
 from app.models.feature_vector import FeatureVector
-from app.models.market_data_bundle import MarketDataBundle
 from app.models.signal import Signal
 from app.ports.strategy_port import StrategyPort
 from app.signal_engine.config import SignalSettings
+from app.signal_engine.market_data import FactorAvailability, SymbolFeed
 from app.strategy.breakout import BreakoutStrategy
 from app.strategy.donchian import DonchianStrategy
 from app.strategy.oi_divergence import OIDivergenceStrategy
@@ -52,13 +52,17 @@ FACTOR_KEYS = ("signal", "regime", "liquidity", "oi")
 
 @dataclass(frozen=True)
 class SignalSetup:
-    """A detected setup worth notifying about (no execution semantics)."""
+    """A detected setup worth notifying about (no execution semantics).
+
+    ``factors`` is tri-state: ``True`` matched, ``False`` evaluated-but-not-matched,
+    ``None`` data unavailable (e.g. Coinglass not configured).
+    """
 
     symbol: str
     direction: str  # "LONG" | "SHORT"
     strength: float
     quality: float
-    factors: dict[str, bool]
+    factors: dict[str, bool | None]
     price: float
     atr: float
     regime: str
@@ -78,8 +82,15 @@ def score_factors(
     features: FeatureVector,
     signal: Signal,
     settings: SignalSettings,
-) -> dict[str, bool]:
-    """Evaluate the four quality factors for a signal against its features."""
+    availability: FactorAvailability | None = None,
+) -> dict[str, bool | None]:
+    """Evaluate the four quality factors. Data-less factors return ``None``.
+
+    ``availability`` says whether the liquidity/OI data is actually present; when
+    it isn't, those factors are ``None`` ("data unavailable") rather than ``False``,
+    so a missing Coinglass feed is never mistaken for an evaluated failure or pass.
+    """
+    avail = availability or FactorAvailability()
     is_long = signal.direction == Direction.LONG
 
     # (a) strategy signal strong enough
@@ -92,43 +103,51 @@ def score_factors(
         f_regime = features.regime_label == RegimeLabel.TREND_DOWN
 
     # (c) liquidity cluster (coinglass heatmap) sits in the signal's direction
-    if is_long:
+    f_liquidity: bool | None
+    if not avail.liquidity:
+        f_liquidity = None
+    elif is_long:
         f_liquidity = features.liquidation_above > features.liquidation_below and features.liquidation_above > 0
     else:
         f_liquidity = features.liquidation_below > features.liquidation_above and features.liquidation_below > 0
 
     # (d) open interest building (fresh positions backing the move)
-    f_oi = features.oi_delta > settings.min_oi_imbalance and features.oi_trend > 0
+    f_oi: bool | None
+    if not avail.oi:
+        f_oi = None
+    else:
+        f_oi = features.oi_delta > settings.min_oi_imbalance and features.oi_trend > 0
 
     return {"signal": f_signal, "regime": f_regime, "liquidity": f_liquidity, "oi": f_oi}
 
 
-def quality_from_factors(factors: dict[str, bool]) -> float:
-    """Quality score 0..1 = fraction of the four factors that matched."""
-    return sum(1 for k in FACTOR_KEYS if factors.get(k)) / len(FACTOR_KEYS)
+def quality_from_factors(factors: dict[str, bool | None]) -> float:
+    """Quality 0..1 = matched factors / four. Unavailable (``None``) factors can
+    never contribute, so missing data lowers the ceiling instead of inflating it."""
+    return sum(1 for k in FACTOR_KEYS if factors.get(k) is True) / len(FACTOR_KEYS)
 
 
 def evaluate_symbol(
     symbol: str,
-    bundle: MarketDataBundle,
+    feed: SymbolFeed,
     strategy: StrategyPort,
     settings: SignalSettings,
     feature_engine: FeatureEngine | None = None,
 ) -> SignalSetup | None:
     """Build features, run the strategy, score it. Returns a setup or ``None``."""
     engine = feature_engine or FeatureEngine()
-    features = engine.build_features(bundle)
+    features = engine.build_features(feed.bundle)
     signal = strategy.generate_signal(features)
     if signal is None:
         return None
 
-    factors = score_factors(features, signal, settings)
+    factors = score_factors(features, signal, settings, feed.availability)
     quality = quality_from_factors(factors)
     if quality < settings.min_quality:
         logger.debug("%s below min_quality: %.2f < %.2f", symbol, quality, settings.min_quality)
         return None
 
-    matched = [k for k in FACTOR_KEYS if factors[k]]
+    matched = [k for k in FACTOR_KEYS if factors[k] is True]
     return SignalSetup(
         symbol=symbol,
         direction=signal.direction.value,
@@ -143,16 +162,16 @@ def evaluate_symbol(
 
 
 def select_setups(
-    bundles: dict[str, MarketDataBundle],
+    feeds: dict[str, SymbolFeed],
     settings: SignalSettings,
     feature_engine: FeatureEngine | None = None,
 ) -> list[SignalSetup]:
     """Score every symbol and return the passing setups, best quality first."""
     engine = feature_engine or FeatureEngine()
     setups: list[SignalSetup] = []
-    for symbol, bundle in bundles.items():
+    for symbol, feed in feeds.items():
         strategy = build_strategy(settings.strategy_name, symbol)
-        setup = evaluate_symbol(symbol, bundle, strategy, settings, engine)
+        setup = evaluate_symbol(symbol, feed, strategy, settings, engine)
         if setup is not None:
             setups.append(setup)
     setups.sort(key=lambda s: s.quality, reverse=True)
