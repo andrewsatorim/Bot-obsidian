@@ -174,6 +174,45 @@ CONFIGS: dict[str, BacktestConfig] = {
         timeframe="30m",
         strategies="ALL",
     ),
+    # Fast-vector profiles — the SIGNAL-ENGINE strategy set on short timeframes,
+    # with OKX taker fee + slippage. Same execution profile across all five so the
+    # comparison isolates the strategy. Trading logic is untouched; this only adds
+    # backtest execution profiles. Used to pick SIGNAL_STRATEGY_NAME for the fast
+    # vector (the signal engine), which runs on 15m setup / 3-5m entry.
+    "fast15": BacktestConfig(
+        name="fast15",
+        description="Fast vector @15m: signal-engine strategies, lev 20, TP +8/+25/+60, trail 1xATR, OKX fees",
+        leverage=20.0,
+        margin_pct=0.05,
+        atr_mult=1.5,
+        tp_levels=[
+            TPLevel(pnl_pct=0.08, close_pct=0.40, move_sl_to_entry=True),
+            TPLevel(pnl_pct=0.25, close_pct=0.35, move_sl_to_entry=False),
+            TPLevel(pnl_pct=0.60, close_pct=1.00, move_sl_to_entry=False),
+        ],
+        trailing_atr=1.0,
+        timeframe="15m",
+        strategies=["TrendFollowing", "Breakout", "Donchian", "Swing", "OIDivergence"],
+        fee_pct=0.0005,       # OKX taker ~0.05% per fill
+        slippage_pct=0.0005,
+    ),
+    "fast5": BacktestConfig(
+        name="fast5",
+        description="Fast vector @5m: signal-engine strategies, lev 20, TP +8/+25/+60, trail 1xATR, OKX fees",
+        leverage=20.0,
+        margin_pct=0.05,
+        atr_mult=1.5,
+        tp_levels=[
+            TPLevel(pnl_pct=0.08, close_pct=0.40, move_sl_to_entry=True),
+            TPLevel(pnl_pct=0.25, close_pct=0.35, move_sl_to_entry=False),
+            TPLevel(pnl_pct=0.60, close_pct=1.00, move_sl_to_entry=False),
+        ],
+        trailing_atr=1.0,
+        timeframe="5m",
+        strategies=["TrendFollowing", "Breakout", "Donchian", "Swing", "OIDivergence"],
+        fee_pct=0.0005,
+        slippage_pct=0.0005,
+    ),
 }
 
 
@@ -200,13 +239,19 @@ def build_bundles_simulated(n: int, symbol: str) -> list[MarketDataBundle]:
 
 
 def build_bundles_ccxt(
-    n: int, symbol: str, timeframe: str, exchange_id: str
+    n: int, symbol: str, timeframe: str, exchange_id: str,
+    lookback_days: int | None = None,
 ) -> list[MarketDataBundle]:
     """Download real OHLCV (+ funding) via ccxt and build rolling-window bundles.
 
     Open-interest history is best-effort (not all venues expose it through ccxt);
     when unavailable, oi_history falls back to a flat series so OI-aware strategies
     simply produce no divergence signal rather than crash.
+
+    ``lookback_days`` (optional): when set, fetch deep history via forward
+    ``since`` pagination covering that many days, instead of the recent-``n``
+    backward pull. Needed for multi-month windows — venues like binanceusdm serve
+    it; OKX's public candles endpoint only returns ~recent data (~1440 bars).
     """
     import time
 
@@ -216,22 +261,40 @@ def build_bundles_ccxt(
 
     exchange = getattr(ccxt, exchange_id)({"enableRateLimit": True})
 
-    logger.info("downloading %d %s candles for %s from %s", n, timeframe, symbol, exchange_id)
     candles: list[list] = []
-    end_ts = int(time.time() * 1000)
-    while len(candles) < n:
-        batch = min(300, n - len(candles))
-        params = {"before": str(end_ts)} if candles else {}
-        ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=batch, params=params)
-        if not ohlcv:
-            break
-        seen = {c[0] for c in candles}
-        fresh = [c for c in ohlcv if c[0] not in seen]
-        if not fresh:
-            break
-        candles.extend(fresh)
-        end_ts = min(c[0] for c in fresh)
-        time.sleep(exchange.rateLimit / 1000.0)
+    if lookback_days is not None:
+        logger.info("downloading ~%dd of %s candles for %s from %s (since-pagination)",
+                    lookback_days, timeframe, symbol, exchange_id)
+        cursor = int(time.time() * 1000) - lookback_days * 86_400_000
+        while True:
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, since=cursor, limit=1000)
+            if not ohlcv:
+                break
+            seen = {c[0] for c in candles}
+            fresh = [c for c in ohlcv if c[0] not in seen]
+            if not fresh:
+                break
+            candles.extend(fresh)
+            cursor = fresh[-1][0] + 1
+            if len(ohlcv) < 1000:
+                break
+            time.sleep(exchange.rateLimit / 1000.0)
+    else:
+        logger.info("downloading %d %s candles for %s from %s", n, timeframe, symbol, exchange_id)
+        end_ts = int(time.time() * 1000)
+        while len(candles) < n:
+            batch = min(300, n - len(candles))
+            params = {"before": str(end_ts)} if candles else {}
+            ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=batch, params=params)
+            if not ohlcv:
+                break
+            seen = {c[0] for c in candles}
+            fresh = [c for c in ohlcv if c[0] not in seen]
+            if not fresh:
+                break
+            candles.extend(fresh)
+            end_ts = min(c[0] for c in fresh)
+            time.sleep(exchange.rateLimit / 1000.0)
     candles.sort(key=lambda c: c[0])
 
     # Funding history (best effort)
