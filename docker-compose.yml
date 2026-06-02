@@ -8,5 +8,21 @@ services:
       - bot-data:/app/data
     restart: unless-stopped
 
+  # PRIVATE signal engine — SEPARATE process, SEPARATE container.
+  # Reuses the same image but overrides the entrypoint to launch the signal
+  # runner instead of the main bot. Isolation guarantees:
+  #   * own env file (.env.signal) — never sees the main bot's .env / secrets;
+  #   * no port published — it only pushes text to a private Telegram channel;
+  #   * no shared volume (does not mount bot-data) — no execution/state path;
+  #   * never imports the executor/orchestrator (enforced in code + tests).
+  signal-engine:
+    build: .
+    container_name: signal-engine
+    env_file: .env.signal
+    entrypoint: ["python", "scripts/run_signal_engine.py"]
+    healthcheck:
+      disable: true   # main image healthcheck probes :8080; the engine serves no HTTP
+    restart: unless-stopped
+
 volumes:
   bot-data:
