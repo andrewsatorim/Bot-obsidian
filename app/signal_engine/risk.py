@@ -79,7 +79,9 @@ def compute_risk(setup: SignalSetup, settings: SignalSettings) -> SignalRisk:
             loss_pct=loss * 100.0,
         )
 
-    scenarios = [scenario(lev) for lev in settings.leverages]
+    # Only report leverage scenarios at or below the cap — the risk block never
+    # advertises leverage the engine itself would reject (see max_leverage).
+    scenarios = [scenario(lev) for lev in settings.leverages if lev <= settings.max_leverage]
 
     # Leverage that nets +100% of deposit at target (x2). Net move per 1x is
     # (target_move - fee_rt); if that is non-positive, x2 is unreachable.

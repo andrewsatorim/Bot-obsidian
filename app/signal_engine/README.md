@@ -23,6 +23,24 @@ tri-state `None`, not a fabricated pass and not a misleading fail. Quality is
 to get the full four-factor confirmation before relying on the quality % for
 sizing decisions.
 
+## Sending rules: x2 leverage filter + dedup
+
+A passing `min_quality` setup is **not** automatically sent. Two gates run in
+`engine.run_once`:
+
+1. **x2 leverage filter (a filter, not text).** A setup is sent only if the
+   deposit can be doubled in one trade (x2) at leverage **≤ `max_leverage`**
+   (default **50**). The leverage needed is `1 / (target_move − round_trip_fee)`;
+   if that exceeds the cap — or x2 is unreachable (`inf`) — the setup is
+   **dropped**, never sent. In practice this needs a target move ≥ ~2%, i.e.
+   **ATR ≳ 0.7% of price** at the default `atr_mult=1.5`, `rr_target=2`. The risk
+   block only ever shows leverages ≤ `max_leverage`, and the x2 line is always a
+   real capped value (`… ≈ x17 (≤50) …`).
+2. **Edge-triggered dedup.** Each setup is keyed by `(symbol, direction)` and
+   alerted **once when it appears**, not on every scan. The key re-arms when the
+   setup disappears, so a later recurrence alerts again. This is what stops the
+   same setup arriving in a batch every `scan_interval_sec`.
+
 ## Isolation contract (enforced by `tests/test_signal_engine_isolation.py`)
 
 1. **No execution path.** This package never imports — directly or transitively —
@@ -35,7 +53,8 @@ sizing decisions.
    rm -rf app/signal_engine scripts/run_signal_engine.py .env.signal.example \
           tests/test_signal_engine_isolation.py \
           tests/test_signal_engine_setups.py \
-          tests/test_signal_engine_risk.py
+          tests/test_signal_engine_risk.py \
+          tests/test_signal_engine_engine.py
    ```
 
    Verified: after this cut the main package (`app.main`, `app.api`,

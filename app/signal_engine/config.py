@@ -29,8 +29,14 @@ class SignalSettings(BaseSettings):
     account_equity: float = Field(default=10_000.0, gt=0)
     atr_mult: float = Field(default=1.5, gt=0)              # ATR stop multiplier
     rr_target: float = Field(default=2.0, gt=0)             # reward:risk for take-profit
-    leverages: list[float] = [20.0, 30.0, 40.0]            # leverage scenarios to report
+    leverages: list[float] = [20.0, 30.0, 50.0]            # leverage scenarios to report (keep <= max_leverage)
     fee_pct: float = Field(default=0.0005, ge=0)           # taker fee per side (round-trip x2)
+
+    # Hard cap on usable leverage. A setup is only sent if doubling the deposit
+    # in one trade (x2) is achievable at leverage <= this; setups whose x2 needs
+    # more (or is unreachable) are FILTERED OUT, not just annotated. The risk
+    # block also never shows scenarios above this cap.
+    max_leverage: float = Field(default=50.0, gt=0)
 
     # Coinglass (v4) — feeds the liquidation-heatmap and OI factors with real
     # data. If empty, those factors are reported as "data unavailable" (never
