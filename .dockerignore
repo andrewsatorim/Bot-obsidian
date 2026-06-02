@@ -1,0 +1,27 @@
+# Keep the build context lean AND keep secrets out of image layers.
+# CRITICAL: .env / .env.signal must NEVER be baked into the image — they are
+# injected at runtime via docker-compose `env_file`. Baking them in both leaks
+# the secret into a layer and shadows the runtime env with a stale copy.
+.env
+.env.signal
+
+# VCS / tooling
+.git
+.gitignore
+.dockerignore
+
+# Python caches & build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Runtime data (mounted as a volume, not shipped in the image)
+data/
