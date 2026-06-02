@@ -5,7 +5,13 @@ the same kind of ccxt market data but sit at opposite ends of the timeframe
 spectrum and serve different purposes. Their strategies are selected
 **separately**, each backtested on its own timeframes.
 
-| | **Fast vector** | **Slow vector** |
+> ⚠️ **Status.** The **fast vector** is implemented (`app/signal_engine/`). The
+> **slow vector below is a TARGET specification — NOT yet implemented.** The main
+> trading engine does not run this timeframe hierarchy today (see
+> "Current state vs target"). Read the slow-vector section as the goal, not as a
+> description of existing code.
+
+| | **Fast vector** (implemented) | **Slow vector** (planned) |
 |---|---|---|
 | Code | `app/signal_engine/` (private) | `app/core`, orchestrator, execution (sellable) |
 | Output | Telegram **text signal only** (no execution) | **Live trade execution** |
@@ -44,7 +50,10 @@ trend. They are not two settings of one engine — they are separate engines.
   plus the Coinglass liquidity/OI factors when available. Disagreement lowers the
   score; it is not a hard gate.
 
-## Slow vector — main trading engine (sellable)
+## Slow vector — main trading engine (sellable) — TARGET, not yet implemented
+
+> This section describes the **intended** design. It is **not** what the code
+> does today — see "Current state vs target" immediately below.
 
 - **Location:** `app/core` + orchestrator + execution — the main bot that places
   real trades and is the product sold to customers.
@@ -54,6 +63,28 @@ trend. They are not two settings of one engine — they are separate engines.
   - Setup confirmation leans on the senior structure/trend (`60m/4h/12h/D`).
 - **Center of gravity:** the higher timeframes — opens and **holds** a position
   aligned with the senior trend, oriented to **long** positions.
+
+### Current state vs target
+
+Verified from code (read-only, June 2026). The slow vector's multi-timeframe
+design is **not implemented**; the main engine currently runs:
+
+| Aspect | Target (above) | Actual code today |
+|---|---|---|
+| Timeframe(s) | `60m/4h/12h/D` eval, `30m` entry | **single `1m`** (`app/feeds/ccxt_feed.py:42`, hardcoded) |
+| Multi-TF / context cache | yes | **none** (no multi-TF logic in `app/core`) |
+| Side | long-centric | **long *and* short** (`app/core/orchestrator.py`) |
+| Strategy | one, backtested on `30m` + confirmation | **fusion of 6** (`StrategyFusion`, `app/main.py`) |
+| Scan interval | matched to the senior TF | **10s** (`app/config.py`) |
+
+Data path today: `orchestrator.step()` → one `data_feed.get_market_data(symbol)`
+(1m, 100 bars) → `build_features` → `strategy.generate_signal`. No higher-
+timeframe panel, no `30m` entry layer, no context layer.
+
+So the multi-timeframe architecture exists **only in the fast vector** so far.
+Closing this gap (shifting the main engine to `60m/4h/12h/D` + `30m` entry,
+long-centric, single strategy) is future work — it touches live trading-engine
+logic and must not be started without an explicit decision.
 
 ---
 
