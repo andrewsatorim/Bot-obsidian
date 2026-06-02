@@ -2,17 +2,37 @@
 
 No network: we drive ``run_once`` by monkeypatching ``select_setups`` (so each
 scan yields exactly the setups we choose) and capture what the notifier sends.
-``symbols=[]`` means the provider is never queried.
+The collector/context-cache are inert stubs because ``select_setups`` is faked.
 """
 
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 
 import app.signal_engine.engine as engine_mod
 from app.signal_engine.config import SignalSettings
 from app.signal_engine.engine import SignalEngine
 from app.signal_engine.setups import SignalSetup
+
+
+def _const_select(result: list):
+    """Async ``select_setups`` stub returning the same list every scan."""
+
+    async def _select(*_a, **_k):
+        return list(result)
+
+    return _select
+
+
+def _seq_select(scans: Iterable[list]):
+    """Async ``select_setups`` stub returning the next list per scan."""
+    it = iter(scans)
+
+    async def _select(*_a, **_k):
+        return next(it)
+
+    return _select
 
 
 class _CaptureNotifier:
@@ -42,9 +62,12 @@ def _setup(symbol: str = "SOL/USDT:USDT", direction: str = "LONG", *, atr: float
 
 
 def _engine(notifier: _CaptureNotifier, settings: SignalSettings | None = None) -> SignalEngine:
-    # symbols=[] -> _collect_feeds makes no provider calls; provider is a no-op.
-    settings = settings or SignalSettings(symbols=[], max_leverage=50.0)
-    return SignalEngine(settings=settings, notifier=notifier, provider=object())
+    # select_setups is monkeypatched in every test, so collector/context_cache
+    # are never actually called — inert stubs are fine.
+    settings = settings or SignalSettings(symbols=["X/USDT:USDT"], max_leverage=50.0)
+    return SignalEngine(
+        settings=settings, notifier=notifier, collector=object(), context_cache=object()
+    )
 
 
 # atr=2.0 at price 100 (atr_mult 1.5, rr 2, fee 0.0005): target move 6%, net 5.9%
@@ -57,7 +80,7 @@ _UNREACHABLE_ATR = 0.3
 def test_x2_filter_drops_setup_needing_more_than_max_leverage(monkeypatch) -> None:
     notifier = _CaptureNotifier()
     eng = _engine(notifier)
-    monkeypatch.setattr(engine_mod, "select_setups", lambda *a, **k: [_setup(atr=_UNREACHABLE_ATR)])
+    monkeypatch.setattr(engine_mod, "select_setups", _const_select([_setup(atr=_UNREACHABLE_ATR)]))
 
     passed = asyncio.run(eng.run_once())
 
@@ -68,7 +91,7 @@ def test_x2_filter_drops_setup_needing_more_than_max_leverage(monkeypatch) -> No
 def test_x2_reachable_setup_passes_and_is_sent(monkeypatch) -> None:
     notifier = _CaptureNotifier()
     eng = _engine(notifier)
-    monkeypatch.setattr(engine_mod, "select_setups", lambda *a, **k: [_setup(atr=_REACHABLE_ATR)])
+    monkeypatch.setattr(engine_mod, "select_setups", _const_select([_setup(atr=_REACHABLE_ATR)]))
 
     passed = asyncio.run(eng.run_once())
 
@@ -84,10 +107,12 @@ def test_mixed_scan_sends_only_the_reachable_one(monkeypatch) -> None:
     monkeypatch.setattr(
         engine_mod,
         "select_setups",
-        lambda *a, **k: [
-            _setup(symbol="SOL/USDT:USDT", atr=_REACHABLE_ATR),
-            _setup(symbol="BTC/USDT:USDT", atr=_UNREACHABLE_ATR),
-        ],
+        _const_select(
+            [
+                _setup(symbol="SOL/USDT:USDT", atr=_REACHABLE_ATR),
+                _setup(symbol="BTC/USDT:USDT", atr=_UNREACHABLE_ATR),
+            ]
+        ),
     )
 
     passed = asyncio.run(eng.run_once())
@@ -100,7 +125,7 @@ def test_mixed_scan_sends_only_the_reachable_one(monkeypatch) -> None:
 def test_dedup_same_setup_not_resent_on_repeated_scans(monkeypatch) -> None:
     notifier = _CaptureNotifier()
     eng = _engine(notifier)
-    monkeypatch.setattr(engine_mod, "select_setups", lambda *a, **k: [_setup(atr=_REACHABLE_ATR)])
+    monkeypatch.setattr(engine_mod, "select_setups", _const_select([_setup(atr=_REACHABLE_ATR)]))
 
     asyncio.run(eng.run_once())
     asyncio.run(eng.run_once())
@@ -113,14 +138,17 @@ def test_dedup_rearms_after_setup_disappears(monkeypatch) -> None:
     notifier = _CaptureNotifier()
     eng = _engine(notifier)
 
-    scans = iter(
-        [
-            [_setup(atr=_REACHABLE_ATR)],  # appears -> alert
-            [],                            # gone -> re-arm
-            [_setup(atr=_REACHABLE_ATR)],  # reappears -> alert again
-        ]
+    monkeypatch.setattr(
+        engine_mod,
+        "select_setups",
+        _seq_select(
+            [
+                [_setup(atr=_REACHABLE_ATR)],  # appears -> alert
+                [],                            # gone -> re-arm
+                [_setup(atr=_REACHABLE_ATR)],  # reappears -> alert again
+            ]
+        ),
     )
-    monkeypatch.setattr(engine_mod, "select_setups", lambda *a, **k: next(scans))
 
     asyncio.run(eng.run_once())
     asyncio.run(eng.run_once())
@@ -134,13 +162,16 @@ def test_dedup_distinguishes_direction_flip(monkeypatch) -> None:
     notifier = _CaptureNotifier()
     eng = _engine(notifier)
 
-    scans = iter(
-        [
-            [_setup(direction="LONG", atr=_REACHABLE_ATR)],
-            [_setup(direction="SHORT", atr=_REACHABLE_ATR)],
-        ]
+    monkeypatch.setattr(
+        engine_mod,
+        "select_setups",
+        _seq_select(
+            [
+                [_setup(direction="LONG", atr=_REACHABLE_ATR)],
+                [_setup(direction="SHORT", atr=_REACHABLE_ATR)],
+            ]
+        ),
     )
-    monkeypatch.setattr(engine_mod, "select_setups", lambda *a, **k: next(scans))
 
     asyncio.run(eng.run_once())
     asyncio.run(eng.run_once())

@@ -23,6 +23,38 @@ tri-state `None`, not a fabricated pass and not a misleading fail. Quality is
 to get the full four-factor confirmation before relying on the quality % for
 sizing decisions.
 
+## Multi-timeframe scoring (sub-step 1)
+
+The engine no longer scores on a single 1m bundle. Per scan, per symbol, it
+collects several ccxt timeframes (config-driven, not hardcoded) and blends their
+agreement into the quality score as a **soft** contribution (disagreement lowers
+the score, it does not hard-gate):
+
+| Layer | Default TFs | When | Role |
+|---|---|---|---|
+| Context | `1d`, `12h` | **cached, ≤1×/day** (`SIGNAL_CONTEXT_REFRESH_SEC`) | macro direction — daily sets it, 12h amplifies/dampens (`context.py`) |
+| Evaluation | `15m,30m,1h,4h` | every scan | each casts a direction vote (consensus) |
+| Setup | `15m` | every scan | the strategy runs here (logic untouched) |
+| Entry | `5m` | every scan | short-term momentum / timing (not a vote) |
+
+`5m` is the entry timeframe only — deliberately **not** an evaluation voter.
+Collection lives in `multi_tf.py`; the daily/12h cache in `context.py`. The
+concrete ccxt OHLCV feed is wired in `scripts/run_signal_engine.py`, so the
+package imports no exchange client and stays removable.
+
+**Weighted quality** (`setups.compute_quality`):
+
+```
+quality = sum(weight_i · score_i) / sum(weight_i over AVAILABLE i)
+```
+
+Components: strategy `signal`, setup-TF `regime`, `eval_tf` consensus (fraction
+of voters aligned), `context` (D/12h), `entry` momentum, plus Coinglass
+`liquidity`/`oi` **when available**. The two Coinglass factors are tri-state:
+when their data is missing they drop out of both numerator and denominator, so
+the cap stays honest without fabricating confirmations. All weights and
+timeframes are `SIGNAL_`-config (see `config.py` / `.env.signal.example`).
+
 ## Sending rules: x2 leverage filter + dedup
 
 A passing `min_quality` setup is **not** automatically sent. Two gates run in
@@ -54,7 +86,8 @@ A passing `min_quality` setup is **not** automatically sent. Two gates run in
           tests/test_signal_engine_isolation.py \
           tests/test_signal_engine_setups.py \
           tests/test_signal_engine_risk.py \
-          tests/test_signal_engine_engine.py
+          tests/test_signal_engine_engine.py \
+          tests/test_signal_engine_multi_tf.py
    ```
 
    Verified: after this cut the main package (`app.main`, `app.api`,

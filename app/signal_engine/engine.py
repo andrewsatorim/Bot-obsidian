@@ -13,10 +13,13 @@ import logging
 
 from app.analytics.feature_engine import FeatureEngine
 from app.signal_engine.config import SignalSettings
-from app.signal_engine.market_data import MarketDataProvider, SymbolFeed
+from app.signal_engine.context import ContextCache
+from app.signal_engine.multi_tf import MultiTimeframeCollector
 from app.signal_engine.notifier import TelegramSignalNotifier
 from app.signal_engine.risk import SignalRisk, compute_risk
 from app.signal_engine.setups import FACTOR_KEYS, SignalSetup, select_setups
+
+_CONTEXT_LABELS = {"BULLISH": "🐂 бычий", "BEARISH": "🐻 медвежий", "NEUTRAL": "⚪ нейтральный"}
 
 logger = logging.getLogger(__name__)
 
@@ -47,21 +50,38 @@ def _factor_line(key: str, state: bool | None) -> str:
     return f"  ⚠️ {label} — данные недоступны"
 
 
-def format_signal_message(setup: SignalSetup, risk: SignalRisk, max_leverage: float) -> str:
+def format_signal_message(setup: SignalSetup, risk: SignalRisk, settings: SignalSettings) -> str:
     """Render a setup + risk into a concise Russian Telegram message.
 
+    Shows the weighted quality plus its breakdown: the four setup-TF factors, the
+    evaluation-TF consensus, the macro context (D/12h) and the entry-TF momentum.
     Only setups whose x2 is reachable at leverage <= ``max_leverage`` reach this
     function (the engine filters the rest), so the x2 line always shows a real,
     capped leverage — never an "unreachable" / above-cap case.
     """
     arrow = "🟢 LONG" if setup.direction == "LONG" else "🔴 SHORT"
-    matched = sum(1 for v in setup.factors.values() if v is True)
 
     lines = [
         f"{arrow}  {setup.symbol}",
-        f"Качество сетапа: {setup.quality * 100:.0f}%  ({matched}/{len(FACTOR_KEYS)} факторов)",
+        f"Качество сетапа: {setup.quality * 100:.0f}%  (взвешенный score)",
+        f"Факторы сетапа ({settings.setup_timeframe}):",
     ]
     lines += [_factor_line(k, setup.factors[k]) for k in FACTOR_KEYS]
+
+    # Multi-timeframe breakdown.
+    n_agree = sum(1 for v in setup.eval_votes.values() if v)
+    panel = "/".join(setup.eval_votes.keys())
+    votes_row = "   ".join(
+        f"{'✅' if aligned else '➖'} {tf}" for tf, aligned in setup.eval_votes.items()
+    )
+    lines += [
+        f"Согласие ТФ ({panel}): {n_agree}/{len(setup.eval_votes)}",
+        f"  {votes_row}",
+        f"Контекст D/12h: {_CONTEXT_LABELS.get(setup.context, setup.context)}",
+        f"Вход {settings.entry_timeframe}: "
+        + ("✅ момент по направлению" if setup.entry_aligned else "➖ момент против/нет"),
+    ]
+
     lines += [
         f"Стратегия даёт силу: {setup.strength:.2f} | режим: {setup.regime}",
         "",
@@ -81,7 +101,7 @@ def format_signal_message(setup: SignalSetup, risk: SignalRisk, max_leverage: fl
     lines.append("")
     lines.append(
         f"Для x2 за сделку нужно плечо ≈ x{risk.leverage_for_2x:.0f} "
-        f"(≤{max_leverage:.0f}), и тогда стоп стоит −{risk.loss_pct_at_2x:.0f}% депозита."
+        f"(≤{settings.max_leverage:.0f}), и тогда стоп стоит −{risk.loss_pct_at_2x:.0f}% депозита."
     )
 
     lines.append("")
@@ -96,12 +116,14 @@ class SignalEngine:
         self,
         settings: SignalSettings,
         notifier: TelegramSignalNotifier,
-        provider: MarketDataProvider,
+        collector: MultiTimeframeCollector,
+        context_cache: ContextCache,
         feature_engine: FeatureEngine | None = None,
     ) -> None:
         self._settings = settings
         self._notifier = notifier
-        self._provider = provider
+        self._collector = collector
+        self._context_cache = context_cache
         self._feature_engine = feature_engine or FeatureEngine()
         # Edge-triggered dedup state: (symbol, direction) keys we have ALREADY
         # alerted on and that are still present. A setup is notified once when it
@@ -112,21 +134,17 @@ class SignalEngine:
     def _dedup_key(setup: SignalSetup) -> tuple[str, str]:
         return (setup.symbol, setup.direction)
 
-    async def _collect_feeds(self) -> dict[str, SymbolFeed]:
-        feeds: dict[str, SymbolFeed] = {}
-        for symbol in self._settings.symbols:
-            try:
-                feeds[symbol] = await self._provider.fetch(symbol)
-            except Exception:
-                logger.exception("failed to fetch market data for %s", symbol)
-        return feeds
-
     async def run_once(self) -> list[SignalSetup]:
-        """One scan pass: collect data, select setups, apply the x2 leverage filter,
-        then notify only NEW (not-yet-alerted) setups. Returns the setups that
-        passed the x2 filter this scan (regardless of dedup)."""
-        feeds = await self._collect_feeds()
-        candidates = select_setups(feeds, self._settings, self._feature_engine)
+        """One scan pass: collect multi-TF data, select setups, apply the x2
+        leverage filter, then notify only NEW (not-yet-alerted) setups. Returns
+        the setups that passed the x2 filter this scan (regardless of dedup)."""
+        candidates = await select_setups(
+            self._settings.symbols,
+            self._collector,
+            self._context_cache,
+            self._settings,
+            self._feature_engine,
+        )
 
         # x2 leverage filter: a setup is only worth sending if the deposit can be
         # doubled in one trade at leverage <= max_leverage. inf (unreachable)
@@ -153,9 +171,7 @@ class SignalEngine:
         for setup, risk in passing:
             if self._dedup_key(setup) in self._active_keys:
                 continue  # already alerted on this setup; don't repeat each scan
-            await self._notifier.send(
-                format_signal_message(setup, risk, self._settings.max_leverage)
-            )
+            await self._notifier.send(format_signal_message(setup, risk, self._settings))
             notified += 1
         # Re-arm keys that are gone; keep only currently-present ones as "active".
         self._active_keys = current_keys
